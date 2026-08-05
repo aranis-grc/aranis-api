@@ -1,0 +1,1438 @@
+{
+  "info": {
+    "_postman_id": "a7c3e1f0-4b2d-4c8a-9e5f-1d3b6a8c0e42",
+    "name": "Aranis API v1.0.0",
+    "description": "Third-party risk, cyber risk and privacy data from your Aranis workspace.\n\n## Setup\n\n1. Import the companion environment (`aranis-api.postman_environment.json`).\n2. Set `apiKey` to a key created in Aranis under **Settings → Integrations**.\n3. Pick that environment in the top-right selector.\n\nAuthentication is set on the collection, so every request inherits it — you do\nnot add an Authorization header per request.\n\n## Notes\n\n- Query parameters ship **disabled**. Tick the ones you want.\n- Every request lists the scope it needs at the top of its description. A key\n  missing that scope gets `403 insufficient_scope`, not `401`.\n- `POST` requests send a fresh `Idempotency-Key` via `{{$guid}}`. Reuse a real\n  one in production so a retry cannot create a duplicate.\n- The API is Enterprise-only. A key on another plan gets `403`.\n\nGenerated from the OpenAPI contract — do not edit by hand.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{apiKey}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Surfaces the request id in the console. It is what support asks for, and",
+          "// it is present on every response, including errors.",
+          "const requestId = pm.response.headers.get('X-Request-Id')",
+          "if (requestId) console.log(`request_id: ${requestId}`)",
+          "",
+          "pm.test('not a rate limit', () => pm.expect(pm.response.code).to.not.eql(429))",
+          "",
+          "const remaining = pm.response.headers.get('X-RateLimit-Remaining')",
+          "if (remaining !== null && Number(remaining) < 10) {",
+          "  console.warn(`rate limit nearly exhausted: ${remaining} left`)",
+          "}"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://api.aranis.ai/v1",
+      "type": "string",
+      "description": "Production API base URL."
+    }
+  ],
+  "item": [
+    {
+      "name": "Suppliers",
+      "description": "The third parties your workspace tracks.",
+      "item": [
+        {
+          "name": "List suppliers",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/suppliers?limit=&cursor=&status=&criticality=&risk_group=&vendor_profile=&tag=&updated_since=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "suppliers"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "disabled": true,
+                  "description": "Page size, 1–200. A value above 200 is rejected rather than clamped."
+                },
+                {
+                  "key": "cursor",
+                  "value": "",
+                  "disabled": true,
+                  "description": "The `meta.next_cursor` from the previous page. Opaque — do not construct or parse\nit. Cursors are keyset-based, so pages stay stable while rows are being written."
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "disabled": true,
+                  "description": "One of: active, inactive, pending."
+                },
+                {
+                  "key": "criticality",
+                  "value": "",
+                  "disabled": true,
+                  "description": "One of: low, medium, high, critical."
+                },
+                {
+                  "key": "risk_group",
+                  "value": "",
+                  "disabled": true,
+                  "description": "One of: G1, G2, G3."
+                },
+                {
+                  "key": "vendor_profile",
+                  "value": "",
+                  "disabled": true,
+                  "description": "One of: P0, P1, P2, P3."
+                },
+                {
+                  "key": "tag",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Returns only suppliers carrying this tag."
+                },
+                {
+                  "key": "updated_since",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Only suppliers updated at or after this instant. Use it to poll for changes."
+                }
+              ],
+              "variable": []
+            },
+            "description": "**Scope required:** `suppliers:read`\n\nReturns the workspace's suppliers, newest first.\n\nContact fields (`email`, `contacts`, `onboarding_data`) are present only when the\nkey also holds `pii:read`.\n\n`GET /v1/suppliers`"
+          },
+          "response": []
+        },
+        {
+          "name": "Create a supplier",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}",
+                "description": "A unique value per logical request. Replaying the same key with the same body\nreturns the original response and creates nothing new; the same key with a\ndifferent body is rejected with `409`. Keys are retained for 24 hours.\n\nUse something you can regenerate deterministically for a given intent, such as a\nUUID stored alongside the record you are syncing."
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Acme Cloud Inc\",\n  \"domain\": \"acme.com\",\n  \"email\": \"security@acme.com\",\n  \"industry\": \"SaaS\",\n  \"size\": \"medium\",\n  \"country\": \"US\",\n  \"criticality\": \"high\",\n  \"risk_group\": \"G2\",\n  \"vendor_profile\": \"P2\",\n  \"tags\": [\n    \"cloud\",\n    \"payments\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/suppliers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "suppliers"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "**Scope required:** `suppliers:write`\n\nRegisters a supplier in the workspace.\n\nSuppliers created through the API always land with `source: \"import\"`, whatever\nthe request says. When `domain` is given it is deduplicated within the workspace:\na second supplier on the same domain is rejected with `409` and the existing id.\n\n`POST /v1/suppliers`"
+          },
+          "response": []
+        },
+        {
+          "name": "Retrieve a supplier",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/suppliers/{id}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "suppliers",
+                "{id}"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "The id of the resource. A UUID."
+                }
+              ]
+            },
+            "description": "**Scope required:** `suppliers:read`\n\nReturns one supplier, plus a count of its assessments.\n\n`GET /v1/suppliers/{id}`"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Assessments",
+      "description": "Questionnaire-based evaluations and the gaps they surface.",
+      "item": [
+        {
+          "name": "List assessments",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/assessments?limit=&cursor=&supplier_id=&status=&decision=&assessment_type=&expires_before=&updated_since=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "assessments"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "disabled": true,
+                  "description": "Page size, 1–200. A value above 200 is rejected rather than clamped."
+                },
+                {
+                  "key": "cursor",
+                  "value": "",
+                  "disabled": true,
+                  "description": "The `meta.next_cursor` from the previous page. Opaque — do not construct or parse\nit. Cursors are keyset-based, so pages stay stable while rows are being written."
+                },
+                {
+                  "key": "supplier_id",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "disabled": true,
+                  "description": "One of: draft, sent, in_progress, paused, completed, expired."
+                },
+                {
+                  "key": "decision",
+                  "value": "",
+                  "disabled": true,
+                  "description": "One of: approved, approved_with_caveats, rejected."
+                },
+                {
+                  "key": "assessment_type",
+                  "value": "",
+                  "disabled": true,
+                  "description": "One of: self, supplier."
+                },
+                {
+                  "key": "expires_before",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Only assessments whose validity ends before this instant. Use it to find what needs re-assessing."
+                },
+                {
+                  "key": "updated_since",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                }
+              ],
+              "variable": []
+            },
+            "description": "**Scope required:** `assessments:read`\n\nList assessments\n\n`GET /v1/assessments`"
+          },
+          "response": []
+        },
+        {
+          "name": "Create an assessment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}",
+                "description": "A unique value per logical request. Replaying the same key with the same body\nreturns the original response and creates nothing new; the same key with a\ndifferent body is rejected with `409`. Keys are retained for 24 hours.\n\nUse something you can regenerate deterministically for a given intent, such as a\nUUID stored alongside the record you are syncing."
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"supplier_id\": \"3f1a8c2e-9b47-4d51-a0e6-2c7d8f4b1a93\",\n  \"assessment_type\": \"supplier\",\n  \"deadline\": \"2026-09-30T23:59:59Z\",\n  \"validity_days\": 365\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/assessments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "assessments"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "**Scope required:** `assessments:write`\n\nCreates an assessment in `draft`.\n\nThe API does **not** invite the supplier. Sending the questionnaire is a\ndeliberate action in the Aranis app — an integration should not be able to email\na third party as a side effect of a POST.\n\nSupplier assessments consume the workspace's assessment quota; self-assessments\ndo not.\n\n`POST /v1/assessments`"
+          },
+          "response": []
+        },
+        {
+          "name": "Retrieve an assessment",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/assessments/{id}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "assessments",
+                "{id}"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "The id of the resource. A UUID."
+                }
+              ]
+            },
+            "description": "**Scope required:** `assessments:read`\n\nRetrieve an assessment\n\n`GET /v1/assessments/{id}`"
+          },
+          "response": []
+        },
+        {
+          "name": "List an assessment's gaps",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/assessments/{id}/gaps?severity=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "assessments",
+                "{id}",
+                "gaps"
+              ],
+              "query": [
+                {
+                  "key": "severity",
+                  "value": "",
+                  "disabled": true,
+                  "description": "One of: low, medium, high."
+                }
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "The id of the resource. A UUID."
+                }
+              ]
+            },
+            "description": "**Scope required:** `assessments:read`\n\nThe controls this assessment did not fully meet, as a derived list.\n\nEach gap carries the code and title of its own control. There is no way to page,\nfilter or enumerate the control catalogue through this endpoint, and nothing here\nreveals a control the assessment did not fail. The supplier's raw answer text is\nnever returned.\n\n`evidence_status` is always present. The `evidence` array — file name, MIME type,\nSHA-256, review status, score — appears only when the key also holds\n`evidence:read`. Evidence file contents never leave the platform.\n\n`GET /v1/assessments/{id}/gaps`"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Reports",
+      "description": "Generated assessment reports and their PDFs.",
+      "item": [
+        {
+          "name": "List reports",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/reports?limit=&cursor=&supplier_id=&assessment_id=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "reports"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "disabled": true,
+                  "description": "Page size, 1–200. A value above 200 is rejected rather than clamped."
+                },
+                {
+                  "key": "cursor",
+                  "value": "",
+                  "disabled": true,
+                  "description": "The `meta.next_cursor` from the previous page. Opaque — do not construct or parse\nit. Cursors are keyset-based, so pages stay stable while rows are being written."
+                },
+                {
+                  "key": "supplier_id",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "assessment_id",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                }
+              ],
+              "variable": []
+            },
+            "description": "**Scope required:** `reports:read`\n\nReport metadata and narrative. Ordered by generation time, newest first.\n\n`GET /v1/reports`"
+          },
+          "response": []
+        },
+        {
+          "name": "Retrieve a report",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/reports/{id}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "reports",
+                "{id}"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "The id of the resource. A UUID."
+                }
+              ]
+            },
+            "description": "**Scope required:** `reports:read`\n\nRetrieve a report\n\n`GET /v1/reports/{id}`"
+          },
+          "response": []
+        },
+        {
+          "name": "Download a report PDF",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/reports/{id}/pdf",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "reports",
+                "{id}",
+                "pdf"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "The id of the resource. A UUID."
+                }
+              ]
+            },
+            "description": "**Scope required:** `reports:read`\n\nRedirects to a signed URL valid for five minutes. The stored object path is never\nreturned, so a redirect captured in a proxy log stops working almost immediately\ninstead of granting standing access.\n\nConfigure your HTTP client to follow redirects. This endpoint has its own hourly\nlimit of 60 requests, separate from the standard buckets.\n\n`GET /v1/reports/{id}/pdf`"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Assets",
+      "description": "The technical inventory, including cloud-discovered assets.",
+      "item": [
+        {
+          "name": "List assets",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/assets?limit=&cursor=&asset_type=&technical_criticality=&exposure=&source=&cloud_provider=&review_status=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "assets"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "disabled": true,
+                  "description": "Page size, 1–200. A value above 200 is rejected rather than clamped."
+                },
+                {
+                  "key": "cursor",
+                  "value": "",
+                  "disabled": true,
+                  "description": "The `meta.next_cursor` from the previous page. Opaque — do not construct or parse\nit. Cursors are keyset-based, so pages stay stable while rows are being written."
+                },
+                {
+                  "key": "asset_type",
+                  "value": "",
+                  "disabled": true,
+                  "description": "One of: application, infrastructure, data, device, facility, third_party, other."
+                },
+                {
+                  "key": "technical_criticality",
+                  "value": "",
+                  "disabled": true,
+                  "description": "One of: low, medium, high, critical."
+                },
+                {
+                  "key": "exposure",
+                  "value": "",
+                  "disabled": true,
+                  "description": "One of: internal, exposed."
+                },
+                {
+                  "key": "source",
+                  "value": "",
+                  "disabled": true,
+                  "description": "One of: manual, cloud."
+                },
+                {
+                  "key": "cloud_provider",
+                  "value": "",
+                  "disabled": true,
+                  "description": "One of: aws, gcp, azure, oci."
+                },
+                {
+                  "key": "review_status",
+                  "value": "",
+                  "disabled": true,
+                  "description": "One of: discovered, confirmed."
+                }
+              ],
+              "variable": []
+            },
+            "description": "**Scope required:** `assets:read`\n\nList assets\n\n`GET /v1/assets`"
+          },
+          "response": []
+        },
+        {
+          "name": "Bulk upsert assets",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"source\": \"cloud\",\n  \"cloud_provider\": \"aws\",\n  \"assets\": [\n    {\n      \"external_id\": \"i-0abc123\",\n      \"name\": \"prod-api-01\",\n      \"asset_type\": \"infrastructure\",\n      \"technical_criticality\": \"high\",\n      \"exposure\": \"exposed\",\n      \"region\": \"us-east-1\",\n      \"cloud_metadata\": {\n        \"instance_type\": \"m5.large\"\n      }\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/assets",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "assets"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "**Scope required:** `assets:write`\n\nDeclarative sync of an external inventory, matched on\n`(source, cloud_provider, external_id)`. Running it twice with the same payload\nleaves the same state, which is why it takes no `Idempotency-Key`.\n\nA malformed item does not abort the batch — it comes back in `skipped` with a\nreason while the rest is written.\n\n**An asset a human has already confirmed is never demoted back to `discovered`.**\nA discovery sync updates its attributes and leaves the review decision alone.\n\nMaximum 500 items per request.\n\n`PUT /v1/assets`"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Context",
+      "description": "Business processes, products, processing activities, BIA and threats.",
+      "item": [
+        {
+          "name": "List business processes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/business-processes?limit=&cursor=&criticality=&area_id=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "business-processes"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "disabled": true,
+                  "description": "Page size, 1–200. A value above 200 is rejected rather than clamped."
+                },
+                {
+                  "key": "cursor",
+                  "value": "",
+                  "disabled": true,
+                  "description": "The `meta.next_cursor` from the previous page. Opaque — do not construct or parse\nit. Cursors are keyset-based, so pages stay stable while rows are being written."
+                },
+                {
+                  "key": "criticality",
+                  "value": "",
+                  "disabled": true,
+                  "description": "One of: low, medium, high, critical."
+                },
+                {
+                  "key": "area_id",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                }
+              ],
+              "variable": []
+            },
+            "description": "**Scope required:** `context:read`\n\nList business processes\n\n`GET /v1/business-processes`"
+          },
+          "response": []
+        },
+        {
+          "name": "List products and services",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/products-services?limit=&cursor=&type=&criticality=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products-services"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "disabled": true,
+                  "description": "Page size, 1–200. A value above 200 is rejected rather than clamped."
+                },
+                {
+                  "key": "cursor",
+                  "value": "",
+                  "disabled": true,
+                  "description": "The `meta.next_cursor` from the previous page. Opaque — do not construct or parse\nit. Cursors are keyset-based, so pages stay stable while rows are being written."
+                },
+                {
+                  "key": "type",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "criticality",
+                  "value": "",
+                  "disabled": true,
+                  "description": "One of: low, medium, high, critical."
+                }
+              ],
+              "variable": []
+            },
+            "description": "**Scope required:** `context:read`\n\nList products and services\n\n`GET /v1/products-services`"
+          },
+          "response": []
+        },
+        {
+          "name": "List processing activities",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/processing-activities?limit=&cursor=&legal_basis=&data_category=&is_sensitive_data=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "processing-activities"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "disabled": true,
+                  "description": "Page size, 1–200. A value above 200 is rejected rather than clamped."
+                },
+                {
+                  "key": "cursor",
+                  "value": "",
+                  "disabled": true,
+                  "description": "The `meta.next_cursor` from the previous page. Opaque — do not construct or parse\nit. Cursors are keyset-based, so pages stay stable while rows are being written."
+                },
+                {
+                  "key": "legal_basis",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "data_category",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "is_sensitive_data",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                }
+              ],
+              "variable": []
+            },
+            "description": "**Scope required:** `context:read`\n\nRecords of processing (ROPA) under LGPD/GDPR. The record describes categories and\nlegal bases, not data subjects. `owner_name` is the one personal field and\nrequires `pii:read`.\n\n`GET /v1/processing-activities`"
+          },
+          "response": []
+        },
+        {
+          "name": "List business impact analyses",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/bia?limit=&cursor=&product_service_id=&resulting_criticality=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "bia"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "disabled": true,
+                  "description": "Page size, 1–200. A value above 200 is rejected rather than clamped."
+                },
+                {
+                  "key": "cursor",
+                  "value": "",
+                  "disabled": true,
+                  "description": "The `meta.next_cursor` from the previous page. Opaque — do not construct or parse\nit. Cursors are keyset-based, so pages stay stable while rows are being written."
+                },
+                {
+                  "key": "product_service_id",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "resulting_criticality",
+                  "value": "",
+                  "disabled": true,
+                  "description": "One of: low, medium, high, critical."
+                }
+              ],
+              "variable": []
+            },
+            "description": "**Scope required:** `context:read`\n\nRTO, RPO and MTPD per product or service.\n\n`GET /v1/bia`"
+          },
+          "response": []
+        },
+        {
+          "name": "List threats",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threats?limit=&cursor=&severity=&status=&source=&cve_id=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threats"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "disabled": true,
+                  "description": "Page size, 1–200. A value above 200 is rejected rather than clamped."
+                },
+                {
+                  "key": "cursor",
+                  "value": "",
+                  "disabled": true,
+                  "description": "The `meta.next_cursor` from the previous page. Opaque — do not construct or parse\nit. Cursors are keyset-based, so pages stay stable while rows are being written."
+                },
+                {
+                  "key": "severity",
+                  "value": "",
+                  "disabled": true,
+                  "description": "One of: none, low, medium, high, critical."
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "disabled": true,
+                  "description": "One of: open, mitigated, accepted."
+                },
+                {
+                  "key": "source",
+                  "value": "",
+                  "disabled": true,
+                  "description": "One of: manual, external_feed, derived."
+                },
+                {
+                  "key": "cve_id",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                }
+              ],
+              "variable": []
+            },
+            "description": "**Scope required:** `context:read`\n\nThe workspace's own threat register. `cve_id` and `mitre_technique_id` are public\nidentifiers you resolve against NVD and MITRE — Aranis' own mapping tables are\nnot exposed.\n\n`GET /v1/threats`"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Risks",
+      "description": "The ERM risk register, scores, matrices and acceptance letters.",
+      "item": [
+        {
+          "name": "List the risk register",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/risks?limit=&cursor=&risk_type=&status=&category=&source_domain=&supplier_id=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "risks"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "disabled": true,
+                  "description": "Page size, 1–200. A value above 200 is rejected rather than clamped."
+                },
+                {
+                  "key": "cursor",
+                  "value": "",
+                  "disabled": true,
+                  "description": "The `meta.next_cursor` from the previous page. Opaque — do not construct or parse\nit. Cursors are keyset-based, so pages stay stable while rows are being written."
+                },
+                {
+                  "key": "risk_type",
+                  "value": "",
+                  "disabled": true,
+                  "description": "One of: organizational, operational."
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "disabled": true,
+                  "description": "One of: open, treated, accepted, closed."
+                },
+                {
+                  "key": "category",
+                  "value": "",
+                  "disabled": true,
+                  "description": "One of: human, biological, technological, legal, brand."
+                },
+                {
+                  "key": "source_domain",
+                  "value": "",
+                  "disabled": true,
+                  "description": "One of: vendor, cyber, privacy, human."
+                },
+                {
+                  "key": "supplier_id",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                }
+              ],
+              "variable": []
+            },
+            "description": "**Scope required:** `risks:read`\n\nThe ERM register (ISO 31000). `code` is the stable public identifier — its\ninternal components are not exposed.\n\n`GET /v1/risks`"
+          },
+          "response": []
+        },
+        {
+          "name": "List a risk's treatments",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/risks/{id}/treatments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "risks",
+                "{id}",
+                "treatments"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "The id of the resource. A UUID."
+                }
+              ]
+            },
+            "description": "**Scope required:** `risks:read`\n\nA risk with no treatments returns `200` with an empty array and\n`feature_status: not_configured` — a newly registered risk simply has none yet.\n\n`GET /v1/risks/{id}/treatments`"
+          },
+          "response": []
+        },
+        {
+          "name": "Organizational risk score, current and historical",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/risk-scores?limit=&from=&to=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "risk-scores"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "disabled": true,
+                  "description": "Page size, 1–200. A value above 200 is rejected rather than clamped."
+                },
+                {
+                  "key": "from",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "to",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                }
+              ],
+              "variable": []
+            },
+            "description": "**Scope required:** `risks:read`\n\nReturns a single-element `data` array holding `current` and `history`. It is a\ntime series bounded by `from`/`to` rather than a cursor-paged collection, so\n`next_cursor` is always null.\n\n`GET /v1/risk-scores`"
+          },
+          "response": []
+        },
+        {
+          "name": "Cyber and organizational risk matrices",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/risk-matrix?limit=&scope=&risk_band=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "risk-matrix"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "disabled": true,
+                  "description": "Page size, 1–200. A value above 200 is rejected rather than clamped."
+                },
+                {
+                  "key": "scope",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Omit to receive both. One of: cyber, organizational."
+                },
+                {
+                  "key": "risk_band",
+                  "value": "",
+                  "disabled": true,
+                  "description": "One of: low, medium, high, critical."
+                }
+              ],
+              "variable": []
+            },
+            "description": "**Scope required:** `risks:read`\n\nOne endpoint over two matrices. Every row carries `scope` so you can tell them\napart without calling two endpoints. Ordered by risk, not by time — the point of\na matrix is what is worst right now — so this collection is not cursor-paged and\n`limit` applies per scope.\n\n`GET /v1/risk-matrix`"
+          },
+          "response": []
+        },
+        {
+          "name": "List risk acceptance letters",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/risk-acceptances?limit=&cursor=&status=&valid_on=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "risk-acceptances"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "disabled": true,
+                  "description": "Page size, 1–200. A value above 200 is rejected rather than clamped."
+                },
+                {
+                  "key": "cursor",
+                  "value": "",
+                  "disabled": true,
+                  "description": "The `meta.next_cursor` from the previous page. Opaque — do not construct or parse\nit. Cursors are keyset-based, so pages stay stable while rows are being written."
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "disabled": true,
+                  "description": "One of: active, expired, revoked."
+                },
+                {
+                  "key": "valid_on",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Letters in force on this date. This is a coverage question, not a lifecycle\none — it is what an auditor actually asks."
+                }
+              ],
+              "variable": []
+            },
+            "description": "**Scope required:** `risks:read`\n\nList risk acceptance letters\n\n`GET /v1/risk-acceptances`"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Action plans",
+      "description": "Remediation plans and their items.",
+      "item": [
+        {
+          "name": "List action plans",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/action-plans?limit=&cursor=&supplier_id=&status=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "action-plans"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "disabled": true,
+                  "description": "Page size, 1–200. A value above 200 is rejected rather than clamped."
+                },
+                {
+                  "key": "cursor",
+                  "value": "",
+                  "disabled": true,
+                  "description": "The `meta.next_cursor` from the previous page. Opaque — do not construct or parse\nit. Cursors are keyset-based, so pages stay stable while rows are being written."
+                },
+                {
+                  "key": "supplier_id",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                }
+              ],
+              "variable": []
+            },
+            "description": "**Scope required:** `action-plans:read`\n\nList action plans\n\n`GET /v1/action-plans`"
+          },
+          "response": []
+        },
+        {
+          "name": "List an action plan's items",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/action-plans/{id}/items?limit=&status=&overdue=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "action-plans",
+                "{id}",
+                "items"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "disabled": true,
+                  "description": "Page size, 1–200. A value above 200 is rejected rather than clamped."
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "disabled": true,
+                  "description": "One of: pending, in_progress, completed, overdue, not_applicable, rejected."
+                },
+                {
+                  "key": "overdue",
+                  "value": "",
+                  "disabled": true,
+                  "description": "`true` returns items past their due date that are not finished. An item\ncompleted after its due date is done, not overdue."
+                }
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "The id of the resource. A UUID."
+                }
+              ]
+            },
+            "description": "**Scope required:** `action-plans:read`\n\nEach item resolves the code and title of its own control, when it has one. The\ncatalogue is not navigable from here.\n\n`GET /v1/action-plans/{id}/items`"
+          },
+          "response": []
+        },
+        {
+          "name": "Update an action plan item's status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"completed\",\n  \"note\": \"Evidence attached in ticket SEC-1042\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/action-plan-items/{id}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "action-plan-items",
+                "{id}"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "The id of the resource. A UUID."
+                }
+              ]
+            },
+            "description": "**Scope required:** `action-plans:write`\n\nThe only endpoint that changes existing state, which is why it is scoped to a\nsingle field.\n\nThe status change is attributed to the human who created the API key — an API key\nis not an actor a compliance reviewer can question. A `note` is recorded in the\nitem's history. Changing the status emits `action_plan_item.status_changed`.\n\n`PATCH /v1/action-plan-items/{id}`"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Alerts",
+      "description": "Alerts and generated insights.",
+      "item": [
+        {
+          "name": "List alerts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/alerts?limit=&scope=&severity=&unresolved=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "alerts"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "disabled": true,
+                  "description": "Page size, 1–200. A value above 200 is rejected rather than clamped."
+                },
+                {
+                  "key": "scope",
+                  "value": "",
+                  "disabled": true,
+                  "description": "One of: supplier, org."
+                },
+                {
+                  "key": "severity",
+                  "value": "",
+                  "disabled": true,
+                  "description": "One of: critical, high, medium, low."
+                },
+                {
+                  "key": "unresolved",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                }
+              ],
+              "variable": []
+            },
+            "description": "**Scope required:** `alerts:read`\n\nSupplier and organizational alerts as one resource. Every row carries `scope`, and\nthe message is `body` on both — you should not have to branch on scope to read an\nalert.\n\n`limit` applies per source, so a page can hold up to twice `limit` rows when no\nscope is given.\n\n`GET /v1/alerts`"
+          },
+          "response": []
+        },
+        {
+          "name": "List generated insights",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/insights?limit=&cursor=&category=&severity=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "insights"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "disabled": true,
+                  "description": "Page size, 1–200. A value above 200 is rejected rather than clamped."
+                },
+                {
+                  "key": "cursor",
+                  "value": "",
+                  "disabled": true,
+                  "description": "The `meta.next_cursor` from the previous page. Opaque — do not construct or parse\nit. Cursors are keyset-based, so pages stay stable while rows are being written."
+                },
+                {
+                  "key": "category",
+                  "value": "",
+                  "disabled": true,
+                  "description": "One of: risk_trend, supplier_concentration, compliance_gap, scanner_health, assessment_velocity, other."
+                },
+                {
+                  "key": "severity",
+                  "value": "",
+                  "disabled": true,
+                  "description": "One of: critical, high, medium, low."
+                }
+              ],
+              "variable": []
+            },
+            "description": "**Scope required:** `alerts:read`\n\nList generated insights\n\n`GET /v1/insights`"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Audit",
+      "description": "The workspace audit trail, for SIEM ingestion.",
+      "item": [
+        {
+          "name": "List audit log entries",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/audit-logs?limit=&cursor=&from=&to=&action=&actor_id=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "audit-logs"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "disabled": true,
+                  "description": "Page size, 1–200. A value above 200 is rejected rather than clamped."
+                },
+                {
+                  "key": "cursor",
+                  "value": "",
+                  "disabled": true,
+                  "description": "The `meta.next_cursor` from the previous page. Opaque — do not construct or parse\nit. Cursors are keyset-based, so pages stay stable while rows are being written."
+                },
+                {
+                  "key": "from",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "to",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "action",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Matches the entry's event type."
+                },
+                {
+                  "key": "actor_id",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                }
+              ],
+              "variable": []
+            },
+            "description": "**Scope required:** `audit:read`\n\nThe workspace audit trail, shaped for SIEM ingestion. Its own scope, deliberately:\na key issued for a supplier sync has no business reading who did what.\n\nThe cursor is stable enough to poll continuously — store `next_cursor` and resume\nfrom it.\n\n`GET /v1/audit-logs`"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Webhooks",
+      "description": "Registered endpoints and their delivery history.",
+      "item": [
+        {
+          "name": "List webhook endpoints",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/webhook-endpoints?limit=&cursor=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "webhook-endpoints"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "disabled": true,
+                  "description": "Page size, 1–200. A value above 200 is rejected rather than clamped."
+                },
+                {
+                  "key": "cursor",
+                  "value": "",
+                  "disabled": true,
+                  "description": "The `meta.next_cursor` from the previous page. Opaque — do not construct or parse\nit. Cursors are keyset-based, so pages stay stable while rows are being written."
+                }
+              ],
+              "variable": []
+            },
+            "description": "**Scope required:** `webhooks:read`\n\nRead only. Endpoints are registered in the Aranis app, never through the API — a\nkey that could register an endpoint could redirect every future event to an\naddress you never chose.\n\n`GET /v1/webhook-endpoints`"
+          },
+          "response": []
+        },
+        {
+          "name": "List webhook delivery attempts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/webhook-deliveries?limit=&cursor=&endpoint_id=&status=&from=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "webhook-deliveries"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "disabled": true,
+                  "description": "Page size, 1–200. A value above 200 is rejected rather than clamped."
+                },
+                {
+                  "key": "cursor",
+                  "value": "",
+                  "disabled": true,
+                  "description": "The `meta.next_cursor` from the previous page. Opaque — do not construct or parse\nit. Cursors are keyset-based, so pages stay stable while rows are being written."
+                },
+                {
+                  "key": "endpoint_id",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "disabled": true,
+                  "description": "One of: pending, delivering, delivered, failed, exhausted."
+                },
+                {
+                  "key": "from",
+                  "value": "",
+                  "disabled": true,
+                  "description": ""
+                }
+              ],
+              "variable": []
+            },
+            "description": "**Scope required:** `webhooks:read`\n\nEvery attempt, with the response we saw. This is the endpoint to reach for when an integration goes quiet.\n\n`GET /v1/webhook-deliveries`"
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

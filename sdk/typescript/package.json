@@ -1,0 +1,42 @@
+{
+  "name": "@aranis/api",
+  "version": "1.0.0",
+  "description": "Official TypeScript client for the Aranis API — third-party risk, cyber risk and privacy data.",
+  "license": "MIT",
+  "author": "Aranis",
+  "homepage": "https://developers.aranis.ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/paulojoy/aranis-api.git",
+    "directory": "sdk/typescript"
+  },
+  "bugs": {
+    "url": "https://github.com/paulojoy/aranis-api/issues"
+  },
+  "keywords": ["aranis", "tprm", "third-party-risk", "grc", "api-client"],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist", "README.md"],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "generate": "openapi-typescript ../../openapi.yaml -o src/generated.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test dist/*.test.js",
+    "prepublishOnly": "npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "openapi-typescript": "^7.4.4",
+    "typescript": "^5.7.2"
+  }
+}

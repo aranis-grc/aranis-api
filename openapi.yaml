@@ -1,0 +1,2400 @@
+openapi: 3.1.0
+
+info:
+  title: Aranis API
+  version: "1.0.0"
+  summary: Third-party risk, cyber risk and privacy data from your Aranis workspace.
+  description: |
+    The Aranis API gives an Enterprise workspace programmatic read access to its
+    suppliers, assessments, risks, action plans and audit trail, plus a small set of
+    writes for keeping an external inventory in sync.
+
+    It is a **server-to-server** API. There is no CORS header on any response and no
+    preflight is answered, so it cannot be called from a browser — a key belongs on
+    your backend, never in a page.
+
+    ## Authentication
+
+    Send your key as a bearer token:
+
+    ```
+    Authorization: Bearer ara_live_...
+    ```
+
+    Keys are created in the Aranis app under **Settings → Integrations**. The secret is
+    shown once, at creation. Each key carries an explicit set of scopes and belongs to
+    exactly one workspace — the workspace is always derived from the key, which is why
+    no endpoint accepts an organization identifier as input.
+
+    ## Availability
+
+    The API is part of the Enterprise plan. A valid key on a workspace that is not on
+    Enterprise receives `403 plan_upgrade_required` rather than `401`: the credential is
+    fine, the entitlement is not.
+
+    ## Personal data
+
+    `pii:read` is additive. It grants nothing on its own — it un-redacts personal fields
+    on resources some other scope already allows. Without it, those fields are **absent
+    from the payload**, not null. An absent `email` means "this key may not see it"; a
+    null `email` would mean "this supplier has none", and conflating the two would make
+    your data look empty when it is merely redacted.
+
+    ## What this API deliberately does not expose
+
+    Aranis' control catalogue — the control library, its framework crosswalks, CVE and
+    MITRE mappings, and the questionnaire pools — is not reachable through any endpoint,
+    in any version. Two endpoints name a control (`/assessments/{id}/gaps` and
+    `/action-plans/{id}/items`) and both resolve a code and title for the one gap or item
+    at hand. Neither can enumerate, filter or page the catalogue.
+
+  contact:
+    name: Aranis Support
+    email: suporte@aranis.ai
+    url: https://developers.aranis.ai
+  license:
+    name: Proprietary
+    url: https://aranis.ai/legal/terms
+
+servers:
+  - url: https://api.aranis.ai/v1
+    description: Production
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Suppliers
+    description: The third parties your workspace tracks.
+  - name: Assessments
+    description: Questionnaire-based evaluations and the gaps they surface.
+  - name: Reports
+    description: Generated assessment reports and their PDFs.
+  - name: Assets
+    description: The technical inventory, including cloud-discovered assets.
+  - name: Context
+    description: Business processes, products, processing activities, BIA and threats.
+  - name: Risks
+    description: The ERM risk register, scores, matrices and acceptance letters.
+  - name: Action plans
+    description: Remediation plans and their items.
+  - name: Alerts
+    description: Alerts and generated insights.
+  - name: Audit
+    description: The workspace audit trail, for SIEM ingestion.
+  - name: Webhooks
+    description: Registered endpoints and their delivery history.
+
+paths:
+  # ── Suppliers ────────────────────────────────────────────────────────────────
+  /suppliers:
+    get:
+      tags: [Suppliers]
+      operationId: listSuppliers
+      summary: List suppliers
+      description: |
+        Returns the workspace's suppliers, newest first.
+
+        Contact fields (`email`, `contacts`, `onboarding_data`) are present only when the
+        key also holds `pii:read`.
+      security:
+        - bearerAuth: [suppliers:read]
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/cursor'
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/SupplierStatus' }
+        - name: criticality
+          in: query
+          schema: { $ref: '#/components/schemas/Criticality' }
+        - name: risk_group
+          in: query
+          schema: { $ref: '#/components/schemas/RiskGroup' }
+        - name: vendor_profile
+          in: query
+          schema: { $ref: '#/components/schemas/VendorProfile' }
+        - name: tag
+          in: query
+          description: Returns only suppliers carrying this tag.
+          schema: { type: string }
+        - name: updated_since
+          in: query
+          description: Only suppliers updated at or after this instant. Use it to poll for changes.
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: A page of suppliers.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Collection'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/Supplier' }
+                      currency: { $ref: '#/components/schemas/Currency' }
+              examples:
+                withPii:
+                  summary: Key holding suppliers:read and pii:read
+                  value:
+                    data:
+                      - id: 3f1a8c2e-9b47-4d51-a0e6-2c7d8f4b1a93
+                        name: Acme Cloud Inc
+                        domain: acme.com
+                        industry: SaaS
+                        size: medium
+                        country: US
+                        status: active
+                        is_active: true
+                        criticality: high
+                        risk_group: G2
+                        vendor_profile: P2
+                        tags: [cloud, payments]
+                        source: import
+                        created_at: '2026-07-30T18:22:11Z'
+                        updated_at: '2026-07-30T18:22:11Z'
+                        email: security@acme.com
+                        contacts: []
+                    meta: { has_more: false, next_cursor: null, feature_status: available }
+                    currency: USD
+                withoutPii:
+                  summary: Same key without pii:read — contact fields are absent, not null
+                  value:
+                    data:
+                      - id: 3f1a8c2e-9b47-4d51-a0e6-2c7d8f4b1a93
+                        name: Acme Cloud Inc
+                        domain: acme.com
+                        status: active
+                        criticality: high
+                    meta: { has_more: false, next_cursor: null, feature_status: available }
+                    currency: USD
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+    post:
+      tags: [Suppliers]
+      operationId: createSupplier
+      summary: Create a supplier
+      description: |
+        Registers a supplier in the workspace.
+
+        Suppliers created through the API always land with `source: "import"`, whatever
+        the request says. When `domain` is given it is deduplicated within the workspace:
+        a second supplier on the same domain is rejected with `409` and the existing id.
+      security:
+        - bearerAuth: [suppliers:write]
+      parameters:
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SupplierCreate' }
+            example:
+              name: Acme Cloud Inc
+              domain: acme.com
+              email: security@acme.com
+              industry: SaaS
+              size: medium
+              country: US
+              criticality: high
+              risk_group: G2
+              vendor_profile: P2
+              tags: [cloud, payments]
+      responses:
+        '201':
+          description: The supplier was created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Supplier' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409':
+          description: |
+            Either a supplier already exists on that domain, or the `Idempotency-Key`
+            was already used with a different body.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example:
+                error:
+                  code: conflict
+                  message: A supplier with that domain already exists in this organization.
+                  request_id: req_01J8Z9K2M4N6P8Q0R2S4T6V8
+                  details:
+                    existing_supplier_id: 3f1a8c2e-9b47-4d51-a0e6-2c7d8f4b1a93
+                    domain: acme.com
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /suppliers/{id}:
+    get:
+      tags: [Suppliers]
+      operationId: getSupplier
+      summary: Retrieve a supplier
+      description: Returns one supplier, plus a count of its assessments.
+      security:
+        - bearerAuth: [suppliers:read]
+      parameters:
+        - $ref: '#/components/parameters/resourceId'
+      responses:
+        '200':
+          description: The supplier.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Supplier'
+                  - type: object
+                    properties:
+                      assessment_count:
+                        type: integer
+                        description: "How many assessments exist for this supplier."
+                      currency: { $ref: '#/components/schemas/Currency' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  # ── Assessments ──────────────────────────────────────────────────────────────
+  /assessments:
+    get:
+      tags: [Assessments]
+      operationId: listAssessments
+      summary: List assessments
+      security:
+        - bearerAuth: [assessments:read]
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/cursor'
+        - name: supplier_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/AssessmentStatus' }
+        - name: decision
+          in: query
+          schema: { $ref: '#/components/schemas/AssessmentDecision' }
+        - name: assessment_type
+          in: query
+          schema: { $ref: '#/components/schemas/AssessmentType' }
+        - name: expires_before
+          in: query
+          description: Only assessments whose validity ends before this instant. Use it to find what needs re-assessing.
+          schema: { type: string, format: date-time }
+        - name: updated_since
+          in: query
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: A page of assessments.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Collection'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/Assessment' }
+                      currency: { $ref: '#/components/schemas/Currency' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+    post:
+      tags: [Assessments]
+      operationId: createAssessment
+      summary: Create an assessment
+      description: |
+        Creates an assessment in `draft`.
+
+        The API does **not** invite the supplier. Sending the questionnaire is a
+        deliberate action in the Aranis app — an integration should not be able to email
+        a third party as a side effect of a POST.
+
+        Supplier assessments consume the workspace's assessment quota; self-assessments
+        do not.
+      security:
+        - bearerAuth: [assessments:write]
+      parameters:
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AssessmentCreate' }
+            example:
+              supplier_id: 3f1a8c2e-9b47-4d51-a0e6-2c7d8f4b1a93
+              assessment_type: supplier
+              deadline: '2026-09-30T23:59:59Z'
+              validity_days: 365
+      responses:
+        '201':
+          description: The assessment was created, in draft.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Assessment' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /assessments/{id}:
+    get:
+      tags: [Assessments]
+      operationId: getAssessment
+      summary: Retrieve an assessment
+      security:
+        - bearerAuth: [assessments:read]
+      parameters:
+        - $ref: '#/components/parameters/resourceId'
+      responses:
+        '200':
+          description: The assessment.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Assessment' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /assessments/{id}/gaps:
+    get:
+      tags: [Assessments]
+      operationId: listAssessmentGaps
+      summary: List an assessment's gaps
+      description: |
+        The controls this assessment did not fully meet, as a derived list.
+
+        Each gap carries the code and title of its own control. There is no way to page,
+        filter or enumerate the control catalogue through this endpoint, and nothing here
+        reveals a control the assessment did not fail. The supplier's raw answer text is
+        never returned.
+
+        `evidence_status` is always present. The `evidence` array — file name, MIME type,
+        SHA-256, review status, score — appears only when the key also holds
+        `evidence:read`. Evidence file contents never leave the platform.
+      security:
+        - bearerAuth: [assessments:read]
+      parameters:
+        - $ref: '#/components/parameters/resourceId'
+        - name: severity
+          in: query
+          schema: { type: string, enum: [low, medium, high] }
+      responses:
+        '200':
+          description: |
+            Every gap in the assessment, ordered by control code. A single assessment
+            fits in one response, so this collection is never paged.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Collection'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/Gap' }
+              example:
+                data:
+                  - control_code: ARC08
+                    control_title: Segregation of duties in production access
+                    gap_description: Without segregation, a single operator can both deploy and approve changes.
+                    domain: cyber
+                    status: partially_met
+                    severity: high
+                    evidence_status: missing
+                    evidence: []
+                meta: { has_more: false, next_cursor: null, feature_status: available }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  # ── Reports ──────────────────────────────────────────────────────────────────
+  /reports:
+    get:
+      tags: [Reports]
+      operationId: listReports
+      summary: List reports
+      description: Report metadata and narrative. Ordered by generation time, newest first.
+      security:
+        - bearerAuth: [reports:read]
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/cursor'
+        - name: supplier_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: assessment_id
+          in: query
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: A page of reports.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Collection'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/Report' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /reports/{id}:
+    get:
+      tags: [Reports]
+      operationId: getReport
+      summary: Retrieve a report
+      security:
+        - bearerAuth: [reports:read]
+      parameters:
+        - $ref: '#/components/parameters/resourceId'
+      responses:
+        '200':
+          description: The report.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Report' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /reports/{id}/pdf:
+    get:
+      tags: [Reports]
+      operationId: downloadReportPdf
+      summary: Download a report PDF
+      description: |
+        Redirects to a signed URL valid for five minutes. The stored object path is never
+        returned, so a redirect captured in a proxy log stops working almost immediately
+        instead of granting standing access.
+
+        Configure your HTTP client to follow redirects. This endpoint has its own hourly
+        limit of 60 requests, separate from the standard buckets.
+      security:
+        - bearerAuth: [reports:read]
+      parameters:
+        - $ref: '#/components/parameters/resourceId'
+      responses:
+        '302':
+          description: Redirect to a short-lived signed URL.
+          headers:
+            Location:
+              description: The signed URL. Expires in 5 minutes.
+              schema: { type: string, format: uri }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: The report exists but no PDF has been generated for it yet.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  # ── Assets ───────────────────────────────────────────────────────────────────
+  /assets:
+    get:
+      tags: [Assets]
+      operationId: listAssets
+      summary: List assets
+      security:
+        - bearerAuth: [assets:read]
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/cursor'
+        - name: asset_type
+          in: query
+          schema: { $ref: '#/components/schemas/AssetType' }
+        - name: technical_criticality
+          in: query
+          schema: { $ref: '#/components/schemas/Criticality' }
+        - name: exposure
+          in: query
+          schema: { $ref: '#/components/schemas/Exposure' }
+        - name: source
+          in: query
+          schema: { $ref: '#/components/schemas/AssetSource' }
+        - name: cloud_provider
+          in: query
+          schema: { $ref: '#/components/schemas/CloudProvider' }
+        - name: review_status
+          in: query
+          schema: { $ref: '#/components/schemas/ReviewStatus' }
+      responses:
+        '200':
+          description: A page of assets.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Collection'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/Asset' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+    put:
+      tags: [Assets]
+      operationId: upsertAssets
+      summary: Bulk upsert assets
+      description: |
+        Declarative sync of an external inventory, matched on
+        `(source, cloud_provider, external_id)`. Running it twice with the same payload
+        leaves the same state, which is why it takes no `Idempotency-Key`.
+
+        A malformed item does not abort the batch — it comes back in `skipped` with a
+        reason while the rest is written.
+
+        **An asset a human has already confirmed is never demoted back to `discovered`.**
+        A discovery sync updates its attributes and leaves the review decision alone.
+
+        Maximum 500 items per request.
+      security:
+        - bearerAuth: [assets:write]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AssetUpsert' }
+            example:
+              source: cloud
+              cloud_provider: aws
+              assets:
+                - external_id: i-0abc123
+                  name: prod-api-01
+                  asset_type: infrastructure
+                  technical_criticality: high
+                  exposure: exposed
+                  region: us-east-1
+                  cloud_metadata: { instance_type: m5.large }
+      responses:
+        '200':
+          description: The batch result.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AssetUpsertResult' }
+              example:
+                created: 1
+                updated: 12
+                skipped:
+                  - external_id: i-0badf00d
+                    reason: 'asset_type must be one of: application, infrastructure, data, device, facility, third_party, other.'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  # ── Context ──────────────────────────────────────────────────────────────────
+  /business-processes:
+    get:
+      tags: [Context]
+      operationId: listBusinessProcesses
+      summary: List business processes
+      security:
+        - bearerAuth: [context:read]
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/cursor'
+        - name: criticality
+          in: query
+          schema: { $ref: '#/components/schemas/Criticality' }
+        - name: area_id
+          in: query
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: A page of business processes.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Collection'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/BusinessProcess' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /products-services:
+    get:
+      tags: [Context]
+      operationId: listProductsServices
+      summary: List products and services
+      security:
+        - bearerAuth: [context:read]
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/cursor'
+        - name: type
+          in: query
+          schema: { type: string }
+        - name: criticality
+          in: query
+          schema: { $ref: '#/components/schemas/Criticality' }
+      responses:
+        '200':
+          description: A page of products and services.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Collection'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/ProductService' }
+                      currency: { $ref: '#/components/schemas/Currency' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /processing-activities:
+    get:
+      tags: [Context]
+      operationId: listProcessingActivities
+      summary: List processing activities
+      description: |
+        Records of processing (ROPA) under LGPD/GDPR. The record describes categories and
+        legal bases, not data subjects. `owner_name` is the one personal field and
+        requires `pii:read`.
+      security:
+        - bearerAuth: [context:read]
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/cursor'
+        - name: legal_basis
+          in: query
+          schema: { type: string }
+        - name: data_category
+          in: query
+          schema: { type: string }
+        - name: is_sensitive_data
+          in: query
+          schema: { type: boolean }
+      responses:
+        '200':
+          description: A page of processing activities.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Collection'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/ProcessingActivity' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /bia:
+    get:
+      tags: [Context]
+      operationId: listBiaAssessments
+      summary: List business impact analyses
+      description: RTO, RPO and MTPD per product or service.
+      security:
+        - bearerAuth: [context:read]
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/cursor'
+        - name: product_service_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: resulting_criticality
+          in: query
+          schema: { $ref: '#/components/schemas/Criticality' }
+      responses:
+        '200':
+          description: A page of BIA assessments.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Collection'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/BiaAssessment' }
+                      currency: { $ref: '#/components/schemas/Currency' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /threats:
+    get:
+      tags: [Context]
+      operationId: listThreats
+      summary: List threats
+      description: |
+        The workspace's own threat register. `cve_id` and `mitre_technique_id` are public
+        identifiers you resolve against NVD and MITRE — Aranis' own mapping tables are
+        not exposed.
+      security:
+        - bearerAuth: [context:read]
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/cursor'
+        - name: severity
+          in: query
+          schema: { $ref: '#/components/schemas/ThreatSeverity' }
+        - name: status
+          in: query
+          schema: { type: string, enum: [open, mitigated, accepted] }
+        - name: source
+          in: query
+          schema: { type: string, enum: [manual, external_feed, derived] }
+        - name: cve_id
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: A page of threats.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Collection'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/Threat' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  # ── Risks ────────────────────────────────────────────────────────────────────
+  /risks:
+    get:
+      tags: [Risks]
+      operationId: listRisks
+      summary: List the risk register
+      description: |
+        The ERM register (ISO 31000). `code` is the stable public identifier — its
+        internal components are not exposed.
+      security:
+        - bearerAuth: [risks:read]
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/cursor'
+        - name: risk_type
+          in: query
+          schema: { type: string, enum: [organizational, operational] }
+        - name: status
+          in: query
+          schema: { type: string, enum: [open, treated, accepted, closed] }
+        - name: category
+          in: query
+          schema: { $ref: '#/components/schemas/RiskCategory' }
+        - name: source_domain
+          in: query
+          schema: { type: string, enum: [vendor, cyber, privacy, human] }
+        - name: supplier_id
+          in: query
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: A page of risks.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Collection'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/Risk' }
+                      currency: { $ref: '#/components/schemas/Currency' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /risks/{id}/treatments:
+    get:
+      tags: [Risks]
+      operationId: listRiskTreatments
+      summary: List a risk's treatments
+      description: |
+        A risk with no treatments returns `200` with an empty array and
+        `feature_status: not_configured` — a newly registered risk simply has none yet.
+      security:
+        - bearerAuth: [risks:read]
+      parameters:
+        - $ref: '#/components/parameters/resourceId'
+      responses:
+        '200':
+          description: The risk's treatments.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Collection'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/RiskTreatment' }
+                      currency: { $ref: '#/components/schemas/Currency' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /risk-scores:
+    get:
+      tags: [Risks]
+      operationId: getRiskScores
+      summary: Organizational risk score, current and historical
+      description: |
+        Returns a single-element `data` array holding `current` and `history`. It is a
+        time series bounded by `from`/`to` rather than a cursor-paged collection, so
+        `next_cursor` is always null.
+      security:
+        - bearerAuth: [risks:read]
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: The current score and its history.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Collection'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/RiskScoreSeries' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /risk-matrix:
+    get:
+      tags: [Risks]
+      operationId: getRiskMatrix
+      summary: Cyber and organizational risk matrices
+      description: |
+        One endpoint over two matrices. Every row carries `scope` so you can tell them
+        apart without calling two endpoints. Ordered by risk, not by time — the point of
+        a matrix is what is worst right now — so this collection is not cursor-paged and
+        `limit` applies per scope.
+      security:
+        - bearerAuth: [risks:read]
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - name: scope
+          in: query
+          description: Omit to receive both.
+          schema: { type: string, enum: [cyber, organizational] }
+        - name: risk_band
+          in: query
+          schema: { $ref: '#/components/schemas/RiskBand' }
+      responses:
+        '200':
+          description: Matrix rows.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Collection'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          oneOf:
+                            - $ref: '#/components/schemas/CyberRiskMatrixRow'
+                            - $ref: '#/components/schemas/OrganizationalRiskMatrixRow'
+                          discriminator:
+                            propertyName: scope
+                      currency: { $ref: '#/components/schemas/Currency' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /risk-acceptances:
+    get:
+      tags: [Risks]
+      operationId: listRiskAcceptances
+      summary: List risk acceptance letters
+      security:
+        - bearerAuth: [risks:read]
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/cursor'
+        - name: status
+          in: query
+          schema: { type: string, enum: [active, expired, revoked] }
+        - name: valid_on
+          in: query
+          description: |
+            Letters in force on this date. This is a coverage question, not a lifecycle
+            one — it is what an auditor actually asks.
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: A page of acceptance letters.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Collection'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/RiskAcceptanceLetter' }
+                      currency: { $ref: '#/components/schemas/Currency' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  # ── Action plans ─────────────────────────────────────────────────────────────
+  /action-plans:
+    get:
+      tags: [Action plans]
+      operationId: listActionPlans
+      summary: List action plans
+      security:
+        - bearerAuth: [action-plans:read]
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/cursor'
+        - name: supplier_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: status
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: A page of action plans.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Collection'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/ActionPlan' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /action-plans/{id}/items:
+    get:
+      tags: [Action plans]
+      operationId: listActionPlanItems
+      summary: List an action plan's items
+      description: |
+        Each item resolves the code and title of its own control, when it has one. The
+        catalogue is not navigable from here.
+      security:
+        - bearerAuth: [action-plans:read]
+      parameters:
+        - $ref: '#/components/parameters/resourceId'
+        - $ref: '#/components/parameters/limit'
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/ActionPlanItemStatus' }
+        - name: overdue
+          in: query
+          description: |
+            `true` returns items past their due date that are not finished. An item
+            completed after its due date is done, not overdue.
+          schema: { type: boolean }
+      responses:
+        '200':
+          description: The plan's items.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Collection'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/ActionPlanItem' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /action-plan-items/{id}:
+    patch:
+      tags: [Action plans]
+      operationId: updateActionPlanItem
+      summary: Update an action plan item's status
+      description: |
+        The only endpoint that changes existing state, which is why it is scoped to a
+        single field.
+
+        The status change is attributed to the human who created the API key — an API key
+        is not an actor a compliance reviewer can question. A `note` is recorded in the
+        item's history. Changing the status emits `action_plan_item.status_changed`.
+      security:
+        - bearerAuth: [action-plans:write]
+      parameters:
+        - $ref: '#/components/parameters/resourceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ActionPlanItemUpdate' }
+            example:
+              status: completed
+              note: Evidence attached in ticket SEC-1042
+      responses:
+        '200':
+          description: The updated item.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ActionPlanItem' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  # ── Alerts ───────────────────────────────────────────────────────────────────
+  /alerts:
+    get:
+      tags: [Alerts]
+      operationId: listAlerts
+      summary: List alerts
+      description: |
+        Supplier and organizational alerts as one resource. Every row carries `scope`, and
+        the message is `body` on both — you should not have to branch on scope to read an
+        alert.
+
+        `limit` applies per source, so a page can hold up to twice `limit` rows when no
+        scope is given.
+      security:
+        - bearerAuth: [alerts:read]
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - name: scope
+          in: query
+          schema: { type: string, enum: [supplier, org] }
+        - name: severity
+          in: query
+          schema: { $ref: '#/components/schemas/AlertSeverity' }
+        - name: unresolved
+          in: query
+          schema: { type: boolean }
+      responses:
+        '200':
+          description: Alerts, newest first.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Collection'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/Alert' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /insights:
+    get:
+      tags: [Alerts]
+      operationId: listInsights
+      summary: List generated insights
+      security:
+        - bearerAuth: [alerts:read]
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/cursor'
+        - name: category
+          in: query
+          schema: { $ref: '#/components/schemas/InsightCategory' }
+        - name: severity
+          in: query
+          schema: { $ref: '#/components/schemas/AlertSeverity' }
+      responses:
+        '200':
+          description: A page of insights.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Collection'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/Insight' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  # ── Audit ────────────────────────────────────────────────────────────────────
+  /audit-logs:
+    get:
+      tags: [Audit]
+      operationId: listAuditLogs
+      summary: List audit log entries
+      description: |
+        The workspace audit trail, shaped for SIEM ingestion. Its own scope, deliberately:
+        a key issued for a supplier sync has no business reading who did what.
+
+        The cursor is stable enough to poll continuously — store `next_cursor` and resume
+        from it.
+      security:
+        - bearerAuth: [audit:read]
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/cursor'
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+        - name: action
+          in: query
+          description: Matches the entry's event type.
+          schema: { type: string }
+        - name: actor_id
+          in: query
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: A page of audit entries.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Collection'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/AuditLog' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  # ── Webhooks ─────────────────────────────────────────────────────────────────
+  /webhook-endpoints:
+    get:
+      tags: [Webhooks]
+      operationId: listWebhookEndpoints
+      summary: List webhook endpoints
+      description: |
+        Read only. Endpoints are registered in the Aranis app, never through the API — a
+        key that could register an endpoint could redirect every future event to an
+        address you never chose.
+      security:
+        - bearerAuth: [webhooks:read]
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/cursor'
+      responses:
+        '200':
+          description: A page of endpoints.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Collection'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/WebhookEndpoint' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /webhook-deliveries:
+    get:
+      tags: [Webhooks]
+      operationId: listWebhookDeliveries
+      summary: List webhook delivery attempts
+      description: Every attempt, with the response we saw. This is the endpoint to reach for when an integration goes quiet.
+      security:
+        - bearerAuth: [webhooks:read]
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/cursor'
+        - name: endpoint_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/DeliveryStatus' }
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: A page of delivery attempts.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Collection'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/WebhookDelivery' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: |
+        `Authorization: Bearer <key>`. Keys are created in the Aranis app under
+        Settings → Integrations and carry an explicit scope set. The workspace is always
+        derived from the key.
+
+  parameters:
+    limit:
+      name: limit
+      in: query
+      description: Page size, 1–200. A value above 200 is rejected rather than clamped.
+      schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+    cursor:
+      name: cursor
+      in: query
+      description: |
+        The `meta.next_cursor` from the previous page. Opaque — do not construct or parse
+        it. Cursors are keyset-based, so pages stay stable while rows are being written.
+      schema: { type: string }
+    resourceId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    idempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: |
+        A unique value per logical request. Replaying the same key with the same body
+        returns the original response and creates nothing new; the same key with a
+        different body is rejected with `409`. Keys are retained for 24 hours.
+
+        Use something you can regenerate deterministically for a given intent, such as a
+        UUID stored alongside the record you are syncing.
+      schema: { type: string, maxLength: 255 }
+
+  responses:
+    BadRequest:
+      description: The request was malformed — an unknown filter value, a bad cursor, an out-of-range limit.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Unauthorized:
+      description: |
+        Missing or invalid credentials. Every failure mode — unknown, revoked, expired —
+        returns this same response; distinguishing them would tell an attacker which keys
+        exist.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example:
+            error:
+              code: invalid_api_key
+              message: The API key provided is not valid.
+              request_id: req_01J8Z9K2M4N6P8Q0R2S4T6V8
+    Forbidden:
+      description: |
+        The credential is valid but not entitled. Either the workspace is not on
+        Enterprise (`plan_upgrade_required`) or the key lacks the scope this endpoint
+        requires (`insufficient_scope`).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          examples:
+            planUpgradeRequired:
+              value:
+                error:
+                  code: plan_upgrade_required
+                  message: The Aranis API is available on the Enterprise plan. Contact sales to enable it.
+                  request_id: req_01J8Z9K2M4N6P8Q0R2S4T6V8
+            insufficientScope:
+              value:
+                error:
+                  code: insufficient_scope
+                  message: This API key is missing the 'context:read' scope required for this endpoint.
+                  request_id: req_01J8Z9K2M4N6P8Q0R2S4T6V8
+                  details: { required_scope: context:read }
+    NotFound:
+      description: |
+        No such resource in this workspace. A valid id belonging to another workspace also
+        returns 404 — the API never confirms that a resource exists elsewhere.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Conflict:
+      description: The request conflicts with existing state.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    ValidationFailed:
+      description: The body was well-formed but a field is invalid. `details.fields` names each one.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example:
+            error:
+              code: validation_failed
+              message: One or more fields are invalid.
+              request_id: req_01J8Z9K2M4N6P8Q0R2S4T6V8
+              details:
+                fields:
+                  size: 'Must be one of: small, medium, large, enterprise.'
+                  email: Required.
+    RateLimited:
+      description: |
+        Too many requests. `Retry-After` gives the seconds to wait.
+
+        Limits are per workspace: 60 req/s burst, 600 req/min sustained, 5,000 req/hour.
+        `GET /reports/{id}/pdf` additionally carries its own 60/hour ceiling.
+      headers:
+        Retry-After:
+          schema: { type: integer }
+          description: Seconds to wait before retrying.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    InternalError:
+      description: Something failed on our side. Quote `request_id` to support.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+
+  schemas:
+    Currency:
+      type: string
+      const: USD
+      description: |
+        Currency for every monetary field in the response. Stated once per resource
+        rather than repeated on each amount.
+
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, request_id]
+          properties:
+            code:
+              type: string
+              enum:
+                - invalid_request
+                - invalid_api_key
+                - plan_upgrade_required
+                - insufficient_scope
+                - resource_not_found
+                - conflict
+                - validation_failed
+                - rate_limit_exceeded
+                - internal_error
+            message:
+              type: string
+              description: A human-readable explanation. Safe to log; do not parse.
+            request_id:
+              type: string
+              description: |
+                Also returned as the `X-Request-Id` header on every response, including
+                successful ones. This is what support will ask for.
+            details:
+              type: object
+              additionalProperties: true
+
+    CollectionMeta:
+      type: object
+      required: [has_more, next_cursor, feature_status]
+      properties:
+        has_more:
+          type: boolean
+          description: Whether another page exists.
+        next_cursor:
+          type: [string, 'null']
+          description: Pass as `cursor` to fetch the next page. Null on the last page.
+        feature_status:
+          type: string
+          enum: [available, not_configured, coming_soon]
+          description: |
+            Why a collection is empty, when it is.
+
+            - `available` — the feature is active. An empty `data` means you have no rows.
+            - `not_configured` — the feature exists but this workspace has not set it up.
+            - `coming_soon` — not released yet.
+
+            An empty collection is never a 404 and never a 500.
+        message:
+          type: string
+          description: Present when `feature_status` is not `available`.
+
+    Collection:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items: {}
+        meta: { $ref: '#/components/schemas/CollectionMeta' }
+
+    # ── enums ──────────────────────────────────────────────────────────────────
+    Criticality:
+      type: string
+      enum: [low, medium, high, critical]
+    SupplierStatus:
+      type: string
+      enum: [active, inactive, pending]
+    SupplierSize:
+      type: string
+      enum: [small, medium, large, enterprise]
+    RiskGroup:
+      type: string
+      enum: [G1, G2, G3]
+    VendorProfile:
+      type: string
+      enum: [P0, P1, P2, P3]
+      description: Assessment depth. P0 is a public-evidence review; P3 is the full control pool.
+    AiDataUsage:
+      type: string
+      enum: [none, inference_only, training, unknown]
+    AssessmentStatus:
+      type: string
+      enum: [draft, sent, in_progress, paused, completed, expired]
+    AssessmentType:
+      type: string
+      enum: [self, supplier]
+    AssessmentDecision:
+      type: string
+      enum: [approved, approved_with_caveats, rejected]
+    AssetType:
+      type: string
+      enum: [application, infrastructure, data, device, facility, third_party, other]
+    Exposure:
+      type: string
+      enum: [internal, exposed]
+    AssetSource:
+      type: string
+      enum: [manual, cloud]
+    CloudProvider:
+      type: string
+      enum: [aws, gcp, azure, oci]
+    ReviewStatus:
+      type: string
+      enum: [discovered, confirmed]
+      description: |
+        `confirmed` means a human reviewed the asset. A bulk upsert never demotes a
+        confirmed asset back to `discovered`.
+    ThreatSeverity:
+      type: string
+      enum: [none, low, medium, high, critical]
+    RiskCategory:
+      type: string
+      enum: [human, biological, technological, legal, brand]
+    RiskBand:
+      type: string
+      enum: [low, medium, high, critical]
+    AlertSeverity:
+      type: string
+      enum: [critical, high, medium, low]
+    InsightCategory:
+      type: string
+      enum: [risk_trend, supplier_concentration, compliance_gap, scanner_health, assessment_velocity, other]
+    ActionPlanItemStatus:
+      type: string
+      enum: [pending, in_progress, completed, overdue, not_applicable, rejected]
+    DeliveryStatus:
+      type: string
+      enum: [pending, delivering, delivered, failed, exhausted]
+    WebhookEvent:
+      type: string
+      enum: [assessment.completed, report.ready, alert.created, action_plan_item.status_changed]
+
+    # ── resources ──────────────────────────────────────────────────────────────
+    Supplier:
+      type: object
+      description: |
+        A third party. `email`, `contacts` and `onboarding_data` require `pii:read` and
+        are absent without it.
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        domain:
+          type: [string, 'null']
+          description: "Primary domain. Used to deduplicate on create."
+        website: { type: [string, 'null'] }
+        cnpj:
+          type: [string, 'null']
+          description: "Brazilian company registration number."
+        industry: { type: string }
+        size: { $ref: '#/components/schemas/SupplierSize' }
+        country: { type: [string, 'null'] }
+        status: { $ref: '#/components/schemas/SupplierStatus' }
+        is_active: { type: boolean }
+        criticality: { oneOf: [{ $ref: '#/components/schemas/Criticality' }, { type: 'null' }] }
+        risk_group: { oneOf: [{ $ref: '#/components/schemas/RiskGroup' }, { type: 'null' }] }
+        vendor_profile: { oneOf: [{ $ref: '#/components/schemas/VendorProfile' }, { type: 'null' }] }
+        tags: { type: array, items: { type: string } }
+        source:
+          type: string
+          description: "Always `import` for suppliers created through the API."
+        uses_ai_decisioning: { type: [boolean, 'null'] }
+        ai_data_usage: { oneOf: [{ $ref: '#/components/schemas/AiDataUsage' }, { type: 'null' }] }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        email:
+          type: string
+          description: "Requires `pii:read`."
+        contacts:
+          type: array
+          items: { type: object, additionalProperties: true }
+          description: "Requires `pii:read`."
+        onboarding_data:
+          type: object
+          additionalProperties: true
+          description: "Requires `pii:read`."
+
+    SupplierCreate:
+      type: object
+      required: [name, email]
+      properties:
+        name: { type: string }
+        email:
+          type: string
+          description: "Required — a supplier record must have a contact address."
+        domain:
+          type: string
+          description: "Lowercased and deduplicated within the workspace."
+        cnpj: { type: string }
+        industry:
+          type: string
+          description: "Defaults to `other`."
+        country: { type: string }
+        size: { $ref: '#/components/schemas/SupplierSize' }
+        criticality: { $ref: '#/components/schemas/Criticality' }
+        risk_group: { $ref: '#/components/schemas/RiskGroup' }
+        vendor_profile: { $ref: '#/components/schemas/VendorProfile' }
+        status: { $ref: '#/components/schemas/SupplierStatus' }
+        tags: { type: array, items: { type: string } }
+        uses_ai_decisioning: { type: boolean }
+        ai_data_usage: { $ref: '#/components/schemas/AiDataUsage' }
+
+    Assessment:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        supplier_id:
+          type: [string, 'null']
+          format: uuid
+          description: "Null for self-assessments."
+        assessment_type: { $ref: '#/components/schemas/AssessmentType' }
+        status: { $ref: '#/components/schemas/AssessmentStatus' }
+        vendor_profile: { oneOf: [{ $ref: '#/components/schemas/VendorProfile' }, { type: 'null' }] }
+        deadline: { type: [string, 'null'], format: date-time }
+        completed_at: { type: [string, 'null'], format: date-time }
+        validity_days: { type: [integer, 'null'] }
+        expires_at: { type: [string, 'null'], format: date-time }
+        scores:
+          type: [object, 'null']
+          additionalProperties: true
+          description: |
+            Computed scores. `overall` is the headline; per-domain keys (`cyber`,
+            `privacy`, `bcm`, `ai`) and `business_risk` accompany it. Null until the
+            assessment completes.
+        result_note: { type: [string, 'null'] }
+        scanner_used: { type: [boolean, 'null'] }
+        decision: { oneOf: [{ $ref: '#/components/schemas/AssessmentDecision' }, { type: 'null' }] }
+        decision_reason_text: { type: [string, 'null'] }
+        decided_at: { type: [string, 'null'], format: date-time }
+        is_shared: { type: boolean }
+        sharing_enabled: { type: [boolean, 'null'] }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    AssessmentCreate:
+      type: object
+      required: [assessment_type]
+      properties:
+        assessment_type: { $ref: '#/components/schemas/AssessmentType' }
+        supplier_id:
+          type: string
+          format: uuid
+          description: Required when `assessment_type` is `supplier`; must be omitted when it is `self`.
+        questionnaire_ids: { type: array, items: { type: string, format: uuid } }
+        deadline: { type: string, format: date-time }
+        validity_days: { type: integer, minimum: 1 }
+
+    Gap:
+      type: object
+      description: A control the assessment did not fully meet.
+      properties:
+        control_code:
+          type: string
+          description: "The control's public code, e.g. `ARC08`."
+        control_title: { type: [string, 'null'] }
+        gap_description:
+          type: [string, 'null']
+          description: "What this gap means in practice."
+        domain: { type: [string, 'null'] }
+        status: { type: string, enum: [not_met, partially_met] }
+        severity:
+          type: string
+          enum: [low, medium, high]
+          description: "Derived from the control's canonical CVSS."
+        evidence_status:
+          type: string
+          enum: [provided, pending_review, missing, unknown]
+          description: '`unknown` means the key lacks `evidence:read`, so evidence was not consulted.'
+        evidence:
+          type: array
+          description: 'Metadata only, and only with `evidence:read`. File contents never leave the platform.'
+          items:
+            type: object
+            properties:
+              file_name: { type: [string, 'null'] }
+              mime_type: { type: [string, 'null'] }
+              sha256: { type: [string, 'null'] }
+              status: { type: [string, 'null'] }
+              score: { type: [number, 'null'] }
+              uploaded_at: { type: [string, 'null'], format: date-time }
+
+    Report:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        assessment_id: { type: [string, 'null'], format: uuid }
+        supplier_id: { type: [string, 'null'], format: uuid }
+        narrative: { type: [object, string, 'null'], additionalProperties: true }
+        recommendations: { type: [object, array, string, 'null'] }
+        domain_narratives: { type: [object, 'null'], additionalProperties: true }
+        framework_keys: { type: [array, 'null'], items: { type: string } }
+        generated_at: { type: string, format: date-time }
+        has_pdf:
+          type: boolean
+          description: "Whether a PDF exists. Fetch it from `/reports/{id'}/pdf`."
+
+    Asset:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: [string, 'null'] }
+        asset_type: { $ref: '#/components/schemas/AssetType' }
+        technical_criticality: { $ref: '#/components/schemas/Criticality' }
+        exposure: { $ref: '#/components/schemas/Exposure' }
+        source: { $ref: '#/components/schemas/AssetSource' }
+        cloud_provider: { oneOf: [{ $ref: '#/components/schemas/CloudProvider' }, { type: 'null' }] }
+        external_id:
+          type: [string, 'null']
+          description: "Your identifier for this asset. Half of the natural key on upsert."
+        region: { type: [string, 'null'] }
+        cloud_metadata: { type: [object, 'null'], additionalProperties: true }
+        review_status: { $ref: '#/components/schemas/ReviewStatus' }
+        last_seen_at: { type: [string, 'null'], format: date-time }
+        mttr_hours: { type: [number, 'null'] }
+        rpo_capability_hours: { type: [number, 'null'] }
+        area_id: { type: [string, 'null'], format: uuid }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    AssetUpsert:
+      type: object
+      required: [source, assets]
+      properties:
+        source: { $ref: '#/components/schemas/AssetSource' }
+        cloud_provider:
+          $ref: '#/components/schemas/CloudProvider'
+        assets:
+          type: array
+          minItems: 1
+          maxItems: 500
+          items:
+            type: object
+            required: [name]
+            properties:
+              external_id:
+                type: string
+                description: "Required unless `source` is `manual`."
+              name: { type: string }
+              description: { type: string }
+              asset_type: { $ref: '#/components/schemas/AssetType' }
+              technical_criticality: { $ref: '#/components/schemas/Criticality' }
+              exposure: { $ref: '#/components/schemas/Exposure' }
+              region: { type: string }
+              cloud_metadata: { type: object, additionalProperties: true }
+
+    AssetUpsertResult:
+      type: object
+      properties:
+        created: { type: integer }
+        updated: { type: integer }
+        skipped:
+          type: array
+          description: Items that could not be written. The rest of the batch still was.
+          items:
+            type: object
+            properties:
+              external_id: { type: [string, 'null'] }
+              reason: { type: string }
+
+    BusinessProcess:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: [string, 'null'] }
+        criticality: { oneOf: [{ $ref: '#/components/schemas/Criticality' }, { type: 'null' }] }
+        area_id: { type: [string, 'null'], format: uuid }
+        has_contingency: { type: [boolean, 'null'] }
+        stop_impact: { type: [string, 'null'] }
+        depends_on_data: { type: [boolean, 'null'] }
+        data_location: { type: [string, 'null'] }
+        data_loss_1d_impact: { type: [string, 'null'] }
+        data_loss_1m_impact: { type: [string, 'null'] }
+        tech_dependency_notes: { type: [string, 'null'] }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    ProductService:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: [string, 'null'] }
+        type: { type: [string, 'null'] }
+        criticality: { oneOf: [{ $ref: '#/components/schemas/Criticality' }, { type: 'null' }] }
+        area_id: { type: [string, 'null'], format: uuid }
+        revenue_model: { type: [string, 'null'] }
+        gross_revenue_amount: { type: [number, 'null'] }
+        revenue_period: { type: [string, 'null'] }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    ProcessingActivity:
+      type: object
+      description: A record of processing under LGPD/GDPR. `owner_name` requires `pii:read`.
+      properties:
+        id: { type: string, format: uuid }
+        business_process_id: { type: [string, 'null'], format: uuid }
+        name: { type: string }
+        description: { type: [string, 'null'] }
+        purpose: { type: [string, 'null'] }
+        legal_basis: { type: [string, 'null'] }
+        legal_bases: { type: [array, 'null'], items: { type: string } }
+        data_category: { type: [string, 'null'] }
+        is_sensitive_data: { type: [boolean, 'null'] }
+        personal_data: { type: [array, object, 'null'] }
+        data_origin: { type: [string, 'null'] }
+        data_subject_types: { type: [array, 'null'], items: { type: string } }
+        storage_retention: { type: [string, 'null'] }
+        retention_period: { type: [string, 'null'] }
+        retention_trigger: { type: [string, 'null'] }
+        security_measures: { type: [string, array, 'null'] }
+        access_control: { type: [string, 'null'] }
+        transfers: { type: [string, array, 'null'] }
+        international_transfer: { type: [boolean, 'null'] }
+        transfer_countries: { type: [array, 'null'], items: { type: string } }
+        transfer_instrument: { type: [string, 'null'] }
+        transfer_safeguard: { type: [string, 'null'] }
+        controller_role: { type: [string, 'null'] }
+        responsible_area: { type: [string, 'null'] }
+        automated_decisions: { type: [boolean, 'null'] }
+        public_surveillance: { type: [boolean, 'null'] }
+        large_scale: { type: [boolean, 'null'] }
+        affects_rights: { type: [boolean, 'null'] }
+        emerging_tech: { type: [boolean, 'null'] }
+        anpd_requested: { type: [boolean, 'null'] }
+        processing_notes: { type: [string, 'null'] }
+        source: { type: [string, 'null'] }
+        canvas_completed_at: { type: [string, 'null'], format: date-time }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        owner_name:
+          type: string
+          description: "Requires `pii:read`."
+
+    BiaAssessment:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        product_service_id: { type: [string, 'null'], format: uuid }
+        resulting_criticality: { oneOf: [{ $ref: '#/components/schemas/Criticality' }, { type: 'null' }] }
+        touches_personal_data: { type: [boolean, 'null'] }
+        impact_operational: { type: [number, 'null'] }
+        impact_legal: { type: [number, 'null'] }
+        impact_technological: { type: [number, 'null'] }
+        impact_financial: { type: [number, 'null'] }
+        consolidated_amount:
+          type: [number, 'null']
+          description: "Consolidated financial impact."
+        rto_hours:
+          type: [number, 'null']
+          description: "Recovery time objective."
+        rpo_hours:
+          type: [number, 'null']
+          description: "Recovery point objective."
+        mtpd_hours:
+          type: [number, 'null']
+          description: "Maximum tolerable period of disruption."
+        impact_curve: { type: [object, array, 'null'] }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    Threat:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: [string, 'null'] }
+        source: { type: string, enum: [manual, external_feed, derived] }
+        severity: { $ref: '#/components/schemas/ThreatSeverity' }
+        status: { type: string, enum: [open, mitigated, accepted] }
+        cve_id:
+          type: [string, 'null']
+          description: "Resolve against NVD."
+        cvss_score: { type: [number, 'null'] }
+        cvss_version: { type: [string, 'null'], enum: ['2.0', '3.0', '3.1', '4.0', null] }
+        mitre_technique_id:
+          type: [string, 'null']
+          description: "Resolve against MITRE ATT&CK."
+        mitre_tactic: { type: [string, 'null'] }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    Risk:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        code:
+          type: string
+          description: "Stable public identifier, e.g. `CR-3`."
+        name: { type: string }
+        description: { type: [string, 'null'] }
+        risk_type: { type: string, enum: [organizational, operational] }
+        parent_id: { type: [string, 'null'], format: uuid }
+        category: { oneOf: [{ $ref: '#/components/schemas/RiskCategory' }, { type: 'null' }] }
+        impact_type: { type: [string, 'null'], enum: [disaster, continuity, reputational, null] }
+        source_domain: { type: [string, 'null'], enum: [vendor, cyber, privacy, human, null] }
+        supplier_id: { type: [string, 'null'], format: uuid }
+        status: { type: string, enum: [open, treated, accepted, closed] }
+        is_default: { type: boolean }
+        is_active: { type: boolean }
+        inherent_likelihood: { type: [number, 'null'] }
+        inherent_impact: { type: [number, 'null'] }
+        inherent_amount: { type: [number, 'null'] }
+        residual_likelihood: { type: [number, 'null'] }
+        residual_impact: { type: [number, 'null'] }
+        residual_amount: { type: [number, 'null'] }
+        residual_source: { type: [string, 'null'], enum: [derived, manual, null] }
+        bia_object_id: { type: [string, 'null'], format: uuid }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    RiskTreatment:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        risk_id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: [string, 'null'] }
+        kind: { type: [string, 'null'] }
+        annual_cost: { type: [number, 'null'] }
+        expected_residual_amount: { type: [number, 'null'] }
+        status: { type: [string, 'null'] }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    RiskScoreHistoryPoint:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        score_final: { type: [number, 'null'] }
+        score_tprm: { type: [number, 'null'] }
+        score_cyber: { type: [number, 'null'] }
+        score_human: { type: [number, 'null'] }
+        pillars: { type: [object, 'null'], additionalProperties: true }
+        rc_composite: { type: [number, 'null'] }
+        recorded_at: { type: string, format: date-time }
+
+    RiskScoreSeries:
+      type: object
+      properties:
+        current:
+          type: [object, 'null']
+          description: The most recent calculation. Null if none has run.
+          properties:
+            score_final: { type: [number, 'null'] }
+            score_tprm: { type: [number, 'null'] }
+            score_cyber: { type: [number, 'null'] }
+            score_human: { type: [number, 'null'] }
+            score_ai: { type: [number, 'null'] }
+            weights: { type: [object, 'null'], additionalProperties: true }
+            rc_composite: { type: [number, 'null'] }
+            calculated_at: { type: [string, 'null'], format: date-time }
+        history:
+          type: array
+          items: { $ref: '#/components/schemas/RiskScoreHistoryPoint' }
+
+    CyberRiskMatrixRow:
+      type: object
+      properties:
+        scope: { type: string, const: cyber }
+        id: { type: string, format: uuid }
+        asset_id: { type: [string, 'null'], format: uuid }
+        vulnerability_score: { type: [number, 'null'] }
+        threat_score: { type: [number, 'null'] }
+        open_threat_count: { type: [integer, 'null'] }
+        exposure: { type: [string, 'null'] }
+        impact_score: { type: [number, 'null'] }
+        impact_amount: { type: [number, 'null'] }
+        impact_criticality: { type: [string, 'null'] }
+        risk_score: { type: [number, 'null'] }
+        risk_band: { oneOf: [{ $ref: '#/components/schemas/RiskBand' }, { type: 'null' }] }
+        calculated_at: { type: [string, 'null'], format: date-time }
+        created_at: { type: string, format: date-time }
+
+    OrganizationalRiskMatrixRow:
+      type: object
+      properties:
+        scope: { type: string, const: organizational }
+        id: { type: string, format: uuid }
+        domain: { type: string }
+        risk_score: { type: [number, 'null'] }
+        risk_band: { oneOf: [{ $ref: '#/components/schemas/RiskBand' }, { type: 'null' }] }
+        exposure_amount: { type: [number, 'null'] }
+        source_count: { type: [integer, 'null'] }
+        calculated_at: { type: [string, 'null'], format: date-time }
+        created_at: { type: string, format: date-time }
+
+    RiskAcceptanceLetter:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        source_type: { type: string, enum: [org_risk_matrix, assessment_decision] }
+        assessment_id: { type: [string, 'null'], format: uuid }
+        trigger_domain: { type: [string, 'null'] }
+        trigger_risk_score: { type: [number, 'null'] }
+        justification: { type: string }
+        residual_exposure_amount: { type: [number, 'null'] }
+        compensating_controls: { type: [string, 'null'] }
+        required_level:
+          type: [string, 'null']
+          enum: [manager, director, board, null]
+          description: "The approval level this exposure required."
+        valid_from: { type: [string, 'null'], format: date-time }
+        valid_until: { type: [string, 'null'], format: date-time }
+        status: { type: string, enum: [active, expired, revoked] }
+        revoked_at: { type: [string, 'null'], format: date-time }
+        revocation_reason: { type: [string, 'null'] }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    ActionPlan:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        supplier_id: { type: [string, 'null'], format: uuid }
+        title: { type: [string, 'null'] }
+        status: { type: [string, 'null'] }
+        scope: { type: [string, 'null'] }
+        risk_id: { type: [string, 'null'], format: uuid }
+        shared_at: { type: [string, 'null'], format: date-time }
+        completed_at: { type: [string, 'null'], format: date-time }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    ActionPlanItem:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        action_plan_id: { type: string, format: uuid }
+        action_description: { type: [string, 'null'] }
+        expected_result: { type: [string, 'null'] }
+        due_date: { type: [string, 'null'], format: date-time }
+        status: { $ref: '#/components/schemas/ActionPlanItemStatus' }
+        status_updated_at: { type: [string, 'null'], format: date-time }
+        status_updated_by_type: { type: [string, 'null'], enum: [org_user, supplier_user, supplier_respondent, null] }
+        gap_source_type: { type: [string, 'null'] }
+        gap_detected_at: { type: [string, 'null'], format: date-time }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        control_code:
+          type: [string, 'null']
+          description: "Only on `/action-plans/{id'}/items`. Null when the item has no control."
+        control_title:
+          type: [string, 'null']
+          description: "Only on `/action-plans/{id'}/items`."
+
+    ActionPlanItemUpdate:
+      type: object
+      required: [status]
+      properties:
+        status: { $ref: '#/components/schemas/ActionPlanItemStatus' }
+        note:
+          type: string
+          maxLength: 5000
+          description: "Recorded in the item's history."
+
+    Alert:
+      type: object
+      description: |
+        A supplier or organizational alert. `scope` tells them apart; `body` carries the
+        message in both cases.
+      properties:
+        id: { type: string, format: uuid }
+        scope: { type: string, enum: [supplier, org] }
+        severity: { $ref: '#/components/schemas/AlertSeverity' }
+        title: { type: string }
+        body: { type: [string, 'null'] }
+        resolved: { type: boolean }
+        created_at: { type: string, format: date-time }
+        supplier_id:
+          type: [string, 'null']
+          format: uuid
+          description: "Supplier scope only."
+        type:
+          type: [string, 'null']
+          description: "Supplier scope only."
+        source:
+          type: [string, 'null']
+          description: "Supplier scope only."
+        read_at:
+          type: [string, 'null']
+          format: date-time
+          description: "Supplier scope only."
+        pillar:
+          type: [string, 'null']
+          description: "Org scope only."
+        rc_category:
+          type: [string, 'null']
+          description: "Org scope only."
+        resolved_at:
+          type: [string, 'null']
+          format: date-time
+          description: "Org scope only."
+
+    Insight:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        category: { $ref: '#/components/schemas/InsightCategory' }
+        severity: { $ref: '#/components/schemas/AlertSeverity' }
+        title: { type: string }
+        body: { type: [string, 'null'] }
+        generated_at: { type: string, format: date-time }
+
+    AuditLog:
+      type: object
+      properties:
+        id: { type: [string, integer], format: uuid }
+        event_type: { type: string }
+        payload: { type: [object, 'null'], additionalProperties: true }
+        error: { type: [string, 'null'] }
+        acted_by:
+          type: [string, 'null']
+          format: uuid
+          description: "The acting user's id. A join key, not a name."
+        created_at: { type: string, format: date-time }
+
+    WebhookEndpoint:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        url: { type: string, format: uri }
+        description: { type: [string, 'null'] }
+        secret_prefix:
+          type: string
+          description: "Enough to tell endpoints apart. The secret itself is shown only once, at creation."
+        events: { type: array, items: { $ref: '#/components/schemas/WebhookEvent' } }
+        is_active: { type: boolean }
+        created_at: { type: string, format: date-time }
+        last_success_at: { type: [string, 'null'], format: date-time }
+        last_failure_at: { type: [string, 'null'], format: date-time }
+        consecutive_failures:
+          type: integer
+          description: "Ten in a row disables the endpoint automatically."
+        disabled_at: { type: [string, 'null'], format: date-time }
+        disabled_reason: { type: [string, 'null'] }
+
+    WebhookDelivery:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        endpoint_id: { type: string, format: uuid }
+        event_id:
+          type: string
+          format: uuid
+          description: "Stable across every retry. Deduplicate on this."
+        event_type: { $ref: '#/components/schemas/WebhookEvent' }
+        attempt: { type: integer }
+        status: { $ref: '#/components/schemas/DeliveryStatus' }
+        response_status: { type: [integer, 'null'] }
+        response_snippet: { type: [string, 'null'] }
+        error: { type: [string, 'null'] }
+        scheduled_for: { type: string, format: date-time }
+        delivered_at: { type: [string, 'null'], format: date-time }
+        created_at: { type: string, format: date-time }
+        payload:
+          type: object
+          additionalProperties: true
+          description: "The exact body we sent."
+
+    WebhookEnvelope:
+      type: object
+      description: |
+        The body of every webhook delivery. Payloads are deliberately thin — ids and the
+        minimum state. Fetch the full resource through the API: nothing sensitive lands
+        in your endpoint's logs, the personal-data rules keep applying at read time, and
+        the event shape does not change when a resource gains a field.
+      required: [event_id, type, occurred_at, organization_id, data]
+      properties:
+        event_id:
+          type: string
+          format: uuid
+          description: |
+            Stable across every retry and across the fan-out to multiple endpoints.
+            Delivery is at-least-once — **deduplicate on this value**.
+        type: { $ref: '#/components/schemas/WebhookEvent' }
+        occurred_at: { type: string, format: date-time }
+        organization_id:
+          type: string
+          format: uuid
+          description: "Your workspace id."
+        data:
+          type: object
+          additionalProperties: true
+
+    AssessmentCompletedEvent:
+      allOf:
+        - $ref: '#/components/schemas/WebhookEnvelope'
+        - type: object
+          properties:
+            type: { const: assessment.completed }
+            data:
+              type: object
+              properties:
+                assessment_id: { type: string, format: uuid }
+                supplier_id: { type: [string, 'null'], format: uuid }
+                status: { type: string }
+
+    ReportReadyEvent:
+      allOf:
+        - $ref: '#/components/schemas/WebhookEnvelope'
+        - type: object
+          properties:
+            type: { const: report.ready }
+            data:
+              type: object
+              properties:
+                report_id: { type: string, format: uuid }
+                assessment_id: { type: [string, 'null'], format: uuid }
+                supplier_id: { type: [string, 'null'], format: uuid }
+
+    AlertCreatedEvent:
+      allOf:
+        - $ref: '#/components/schemas/WebhookEnvelope'
+        - type: object
+          properties:
+            type: { const: alert.created }
+            data:
+              type: object
+              properties:
+                alert_id: { type: string, format: uuid }
+                scope: { type: string, enum: [supplier, org] }
+                severity: { type: string }
+                supplier_id:
+                  type: [string, 'null']
+                  format: uuid
+                  description: "Supplier scope only."
+                pillar:
+                  type: [string, 'null']
+                  description: "Org scope only."
+
+    ActionPlanItemStatusChangedEvent:
+      allOf:
+        - $ref: '#/components/schemas/WebhookEnvelope'
+        - type: object
+          properties:
+            type: { const: action_plan_item.status_changed }
+            data:
+              type: object
+              properties:
+                action_plan_item_id: { type: string, format: uuid }
+                action_plan_id: { type: string, format: uuid }
+                supplier_id: { type: [string, 'null'], format: uuid }
+                status: { type: string }
+                previous_status: { type: string }
+
+webhooks:
+  assessment.completed:
+    post:
+      operationId: onAssessmentCompleted
+      summary: An assessment reached `completed`
+      description: |
+        Emitted once, on the transition into `completed`. Re-saving an already completed
+        assessment does not emit again.
+
+        ## Verifying the signature
+
+        Every delivery carries `Aranis-Signature`:
+
+        ```
+        Aranis-Signature: t=1753876800,v1=<hex hmac_sha256>
+        ```
+
+        Compute `HMAC-SHA256("{t}.{raw_body}", your_endpoint_secret)` and compare it to
+        `v1` in constant time. **Use the raw request body** — re-serializing the parsed
+        JSON changes the bytes and the signature will not match.
+
+        Reject anything whose `t` is more than 5 minutes from now. The timestamp is inside
+        the signed payload, so an attacker replaying a captured delivery cannot move it
+        forward without invalidating the HMAC.
+
+        The format is intentionally identical to Stripe's, so an existing validator works
+        with only the header name changed.
+
+        ## Delivery behaviour
+
+        Respond `2xx` to acknowledge. Anything else is a failure and is retried after
+        1 min, 5 min, 30 min, 2 h and 6 h. After the fifth attempt the delivery is marked
+        `exhausted`. Ten consecutive failures disable the endpoint and notify your
+        workspace admins.
+
+        Timeout is 5 seconds — acknowledge first, process afterwards.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AssessmentCompletedEvent' }
+            example:
+              event_id: 8f14e45f-ceea-467a-9f0b-2c1d3e4f5a6b
+              type: assessment.completed
+              occurred_at: '2026-07-30T18:22:11Z'
+              organization_id: 93a4f274-3f39-4f7e-9d83-1f0988e1285a
+              data:
+                assessment_id: 496283fa-520a-4fc1-9982-1a0c44fa3543
+                supplier_id: 3f1a8c2e-9b47-4d51-a0e6-2c7d8f4b1a93
+                status: completed
+      responses:
+        '200':
+          description: Acknowledged. Any 2xx works.
+
+  report.ready:
+    post:
+      operationId: onReportReady
+      summary: A report's PDF became available
+      description: |
+        Fires when a report is created with a PDF, and also when an existing report's PDF
+        is rendered — reports are usually created first and rendered afterwards.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReportReadyEvent' }
+      responses:
+        '200':
+          description: Acknowledged. Any 2xx works.
+
+  alert.created:
+    post:
+      operationId: onAlertCreated
+      summary: An alert was raised
+      description: Covers both supplier and organizational alerts; `data.scope` tells them apart.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AlertCreatedEvent' }
+      responses:
+        '200':
+          description: Acknowledged. Any 2xx works.
+
+  action_plan_item.status_changed:
+    post:
+      operationId: onActionPlanItemStatusChanged
+      summary: An action plan item changed status
+      description: Emitted only when the status actually differs from the previous one.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ActionPlanItemStatusChangedEvent' }
+      responses:
+        '200':
+          description: Acknowledged. Any 2xx works.

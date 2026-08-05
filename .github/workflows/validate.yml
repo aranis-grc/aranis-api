@@ -1,0 +1,62 @@
+name: validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  spec:
+    name: OpenAPI contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Lint the specification
+        run: npx --yes @redocly/cli@latest lint openapi.yaml
+
+      # The collection is generated from the spec. If it stops matching, an integrator
+      # imports a collection that describes an API we do not serve.
+      - name: Postman collection parses and covers every operation
+        run: |
+          node -e "
+            const spec = require('js-yaml').load(require('fs').readFileSync('openapi.yaml','utf8'))
+            const col  = require('./postman/aranis-api.postman_collection.json')
+            const ops  = Object.values(spec.paths).flatMap(p =>
+              Object.keys(p).filter(m => ['get','post','put','patch','delete'].includes(m)))
+            const reqs = col.item.flatMap(f => f.item)
+            if (reqs.length !== ops.length) {
+              console.error(\`collection has \${reqs.length} requests, spec has \${ops.length} operations\`)
+              process.exit(1)
+            }
+            console.log(\`collection covers all \${ops.length} operations\`)
+          "
+        env:
+          NODE_PATH: ./node_modules
+
+  sdk:
+    name: TypeScript SDK
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sdk/typescript
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+
+      # Regenerating must be a no-op. A diff here means the spec moved and the SDK's
+      # types did not — exactly the drift this repository exists to prevent.
+      - name: Generated types are up to date with the spec
+        run: |
+          npm run generate
+          git diff --exit-code src/generated.ts \
+            || (echo "src/generated.ts is stale — run 'npm run generate' and commit"; exit 1)
+
+      - run: npm run typecheck
+      - run: npm run build
