@@ -1,0 +1,11 @@
+# Redocly lint config for the public API contract.
+#   npx @redocly/cli lint docs/api/openapi.yaml
+extends:
+  - recommended
+
+rules:
+  # GET /reports/{id}/pdf answers 302 and nothing else, on purpose: the bytes live
+  # behind a signed URL that expires in five minutes, and returning them inline would
+  # mean streaming a large PDF through the API tier. A 2xx here would be the wrong
+  # contract, so the rule is off rather than the endpoint being reshaped to satisfy it.
+  operation-2xx-response: off

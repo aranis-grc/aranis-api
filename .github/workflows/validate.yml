@@ -20,22 +20,42 @@ jobs:
 
       # The collection is generated from the spec. If it stops matching, an integrator
       # imports a collection that describes an API we do not serve.
-      - name: Postman collection parses and covers every operation
+      - name: Postman collection covers every operation
         run: |
+          npm install --no-save js-yaml
           node -e "
-            const spec = require('js-yaml').load(require('fs').readFileSync('openapi.yaml','utf8'))
-            const col  = require('./postman/aranis-api.postman_collection.json')
-            const ops  = Object.values(spec.paths).flatMap(p =>
-              Object.keys(p).filter(m => ['get','post','put','patch','delete'].includes(m)))
+            const yaml = require('js-yaml')
+            const fs   = require('fs')
+            const spec = yaml.load(fs.readFileSync('openapi.yaml', 'utf8'))
+            const col  = JSON.parse(fs.readFileSync('postman/aranis-api.postman_collection.json', 'utf8'))
+
+            const METHODS = ['get', 'post', 'put', 'patch', 'delete']
+            const ops = Object.entries(spec.paths).flatMap(([p, item]) =>
+              Object.keys(item).filter(m => METHODS.includes(m)).map(m => m.toUpperCase() + ' ' + p))
             const reqs = col.item.flatMap(f => f.item)
+
             if (reqs.length !== ops.length) {
-              console.error(\`collection has \${reqs.length} requests, spec has \${ops.length} operations\`)
+              console.error('collection has ' + reqs.length + ' requests, spec has ' + ops.length + ' operations')
+              console.error('run: npx tsx scripts/generate-postman-collection.ts in the SaaS repo, then re-sync')
               process.exit(1)
             }
-            console.log(\`collection covers all \${ops.length} operations\`)
+
+            // Auth must stay on the collection. Per-request auth is how a collection ends
+            // up with a real key pasted into one request and committed.
+            if (col.auth?.type !== 'bearer' || col.auth.bearer[0].value !== '{{apiKey}}') {
+              console.error('collection auth must be bearer {{apiKey}} at the collection level')
+              process.exit(1)
+            }
+
+            // A committed collection must never carry a real credential.
+            const raw = fs.readFileSync('postman/aranis-api.postman_collection.json', 'utf8')
+            if (/ara_live_[A-Za-z0-9]{10,}/.test(raw)) {
+              console.error('collection contains what looks like a real API key')
+              process.exit(1)
+            }
+
+            console.log('collection covers all ' + ops.length + ' operations')
           "
-        env:
-          NODE_PATH: ./node_modules
 
   sdk:
     name: TypeScript SDK
