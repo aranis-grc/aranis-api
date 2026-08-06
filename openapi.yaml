@@ -167,8 +167,18 @@ paths:
                       - id: 3f1a8c2e-9b47-4d51-a0e6-2c7d8f4b1a93
                         name: Acme Cloud Inc
                         domain: acme.com
+                        industry: SaaS
+                        size: medium
+                        country: US
                         status: active
+                        is_active: true
                         criticality: high
+                        risk_group: G2
+                        vendor_profile: P2
+                        tags: [cloud, payments]
+                        source: import
+                        created_at: '2026-07-30T18:22:11Z'
+                        updated_at: '2026-07-30T18:22:11Z'
                     meta: { has_more: false, next_cursor: null, feature_status: available }
                     currency: USD
         '400': { $ref: '#/components/responses/BadRequest' }
@@ -1592,6 +1602,7 @@ components:
       description: |
         A third party. `email`, `contacts` and `onboarding_data` require `pii:read` and
         are absent without it.
+      required: [id, name, industry, status, is_active, tags, source, created_at, updated_at]
       properties:
         id: { type: string, format: uuid }
         name: { type: string }
@@ -1657,6 +1668,7 @@ components:
 
     Assessment:
       type: object
+      required: [id, assessment_type, status, is_shared, created_at, updated_at]
       properties:
         id: { type: string, format: uuid }
         supplier_id:
@@ -1703,6 +1715,7 @@ components:
     Gap:
       type: object
       description: A control the assessment did not fully meet.
+      required: [control_code, status, severity, evidence_status]
       properties:
         control_code:
           type: string
@@ -1736,6 +1749,7 @@ components:
 
     Report:
       type: object
+      required: [id, generated_at, has_pdf]
       properties:
         id: { type: string, format: uuid }
         assessment_id: { type: [string, 'null'], format: uuid }
@@ -1751,6 +1765,7 @@ components:
 
     Asset:
       type: object
+      required: [id, name, asset_type, technical_criticality, exposure, source, review_status, created_at, updated_at]
       properties:
         id: { type: string, format: uuid }
         name: { type: string }
@@ -1801,6 +1816,7 @@ components:
 
     AssetUpsertResult:
       type: object
+      required: [created, updated, skipped]
       properties:
         created: { type: integer }
         updated: { type: integer }
@@ -1815,6 +1831,7 @@ components:
 
     BusinessProcess:
       type: object
+      required: [id, name, created_at, updated_at]
       properties:
         id: { type: string, format: uuid }
         name: { type: string }
@@ -1833,6 +1850,7 @@ components:
 
     ProductService:
       type: object
+      required: [id, name, created_at, updated_at]
       properties:
         id: { type: string, format: uuid }
         name: { type: string }
@@ -1849,6 +1867,7 @@ components:
     ProcessingActivity:
       type: object
       description: A record of processing under LGPD/GDPR. `owner_name` requires `pii:read`.
+      required: [id, name, created_at, updated_at]
       properties:
         id: { type: string, format: uuid }
         business_process_id: { type: [string, 'null'], format: uuid }
@@ -1891,6 +1910,7 @@ components:
 
     BiaAssessment:
       type: object
+      required: [id, created_at, updated_at]
       properties:
         id: { type: string, format: uuid }
         product_service_id: { type: [string, 'null'], format: uuid }
@@ -1918,6 +1938,7 @@ components:
 
     Threat:
       type: object
+      required: [id, name, source, severity, status, created_at, updated_at]
       properties:
         id: { type: string, format: uuid }
         name: { type: string }
@@ -1939,6 +1960,7 @@ components:
 
     Risk:
       type: object
+      required: [id, code, name, risk_type, status, is_default, is_active, created_at, updated_at]
       properties:
         id: { type: string, format: uuid }
         code:
@@ -1968,6 +1990,7 @@ components:
 
     RiskTreatment:
       type: object
+      required: [id, risk_id, name, created_at, updated_at]
       properties:
         id: { type: string, format: uuid }
         risk_id: { type: string, format: uuid }
@@ -2013,6 +2036,7 @@ components:
 
     CyberRiskMatrixRow:
       type: object
+      required: [id, scope, created_at]
       properties:
         scope: { type: string, const: cyber }
         id: { type: string, format: uuid }
@@ -2031,6 +2055,7 @@ components:
 
     OrganizationalRiskMatrixRow:
       type: object
+      required: [id, scope, domain, created_at]
       properties:
         scope: { type: string, const: organizational }
         id: { type: string, format: uuid }
@@ -2044,6 +2069,7 @@ components:
 
     RiskAcceptanceLetter:
       type: object
+      required: [id, source_type, justification, status, created_at, updated_at]
       properties:
         id: { type: string, format: uuid }
         source_type: { type: string, enum: [org_risk_matrix, assessment_decision] }
@@ -2067,6 +2093,7 @@ components:
 
     ActionPlan:
       type: object
+      required: [id, created_at, updated_at]
       properties:
         id: { type: string, format: uuid }
         supplier_id: { type: [string, 'null'], format: uuid }
@@ -2081,6 +2108,7 @@ components:
 
     ActionPlanItem:
       type: object
+      required: [id, action_plan_id, status, created_at, updated_at]
       properties:
         id: { type: string, format: uuid }
         action_plan_id: { type: string, format: uuid }
@@ -2116,6 +2144,7 @@ components:
       description: |
         A supplier or organizational alert. `scope` tells them apart; `body` carries the
         message in both cases.
+      required: [id, scope, severity, title, resolved, created_at]
       properties:
         id: { type: string, format: uuid }
         scope: { type: string, enum: [supplier, org] }
@@ -2151,6 +2180,7 @@ components:
 
     Insight:
       type: object
+      required: [id, category, severity, title, generated_at]
       properties:
         id: { type: string, format: uuid }
         category: { $ref: '#/components/schemas/InsightCategory' }
@@ -2161,6 +2191,7 @@ components:
 
     AuditLog:
       type: object
+      required: [id, event_type, created_at]
       properties:
         id: { type: [string, integer], format: uuid }
         event_type: { type: string }
@@ -2174,6 +2205,7 @@ components:
 
     WebhookEndpoint:
       type: object
+      required: [id, url, secret_prefix, events, is_active, consecutive_failures, created_at]
       properties:
         id: { type: string, format: uuid }
         url: { type: string, format: uri }
@@ -2194,6 +2226,7 @@ components:
 
     WebhookDelivery:
       type: object
+      required: [id, endpoint_id, event_id, event_type, attempt, status, scheduled_for, created_at, payload]
       properties:
         id: { type: string, format: uuid }
         endpoint_id: { type: string, format: uuid }

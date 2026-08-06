@@ -812,30 +812,30 @@ export interface components {
          */
         Supplier: {
             /** Format: uuid */
-            id?: string;
-            name?: string;
+            id: string;
+            name: string;
             /** @description Primary domain. Used to deduplicate on create. */
             domain?: string | null;
             website?: string | null;
             /** @description Brazilian company registration number. */
             cnpj?: string | null;
-            industry?: string;
+            industry: string;
             size?: components["schemas"]["SupplierSize"];
             country?: string | null;
-            status?: components["schemas"]["SupplierStatus"];
-            is_active?: boolean;
+            status: components["schemas"]["SupplierStatus"];
+            is_active: boolean;
             criticality?: components["schemas"]["Criticality"] | null;
             risk_group?: components["schemas"]["RiskGroup"] | null;
             vendor_profile?: components["schemas"]["VendorProfile"] | null;
-            tags?: string[];
+            tags: string[];
             /** @description Always `import` for suppliers created through the API. */
-            source?: string;
+            source: string;
             uses_ai_decisioning?: boolean | null;
             ai_data_usage?: components["schemas"]["AiDataUsage"] | null;
             /** Format: date-time */
-            created_at?: string;
+            created_at: string;
             /** Format: date-time */
-            updated_at?: string;
+            updated_at: string;
             /** @description Requires `pii:read`. */
             email?: string;
             /** @description Requires `pii:read`. */
@@ -868,14 +868,14 @@ export interface components {
         };
         Assessment: {
             /** Format: uuid */
-            id?: string;
+            id: string;
             /**
              * Format: uuid
              * @description Null for self-assessments.
              */
             supplier_id?: string | null;
-            assessment_type?: components["schemas"]["AssessmentType"];
-            status?: components["schemas"]["AssessmentStatus"];
+            assessment_type: components["schemas"]["AssessmentType"];
+            status: components["schemas"]["AssessmentStatus"];
             vendor_profile?: components["schemas"]["VendorProfile"] | null;
             /** Format: date-time */
             deadline?: string | null;
@@ -898,12 +898,12 @@ export interface components {
             decision_reason_text?: string | null;
             /** Format: date-time */
             decided_at?: string | null;
-            is_shared?: boolean;
+            is_shared: boolean;
             sharing_enabled?: boolean | null;
             /** Format: date-time */
-            created_at?: string;
+            created_at: string;
             /** Format: date-time */
-            updated_at?: string;
+            updated_at: string;
         };
         AssessmentCreate: {
             assessment_type: components["schemas"]["AssessmentType"];
@@ -920,23 +920,23 @@ export interface components {
         /** @description A control the assessment did not fully meet. */
         Gap: {
             /** @description The control's public code, e.g. `ARC08`. */
-            control_code?: string;
+            control_code: string;
             control_title?: string | null;
             /** @description What this gap means in practice. */
             gap_description?: string | null;
             domain?: string | null;
             /** @enum {string} */
-            status?: "not_met" | "partially_met";
+            status: "not_met" | "partially_met";
             /**
              * @description Derived from the control's canonical CVSS.
              * @enum {string}
              */
-            severity?: "low" | "medium" | "high";
+            severity: "low" | "medium" | "high";
             /**
              * @description `unknown` means the key lacks `evidence:read`, so evidence was not consulted.
              * @enum {string}
              */
-            evidence_status?: "provided" | "pending_review" | "missing" | "unknown";
+            evidence_status: "provided" | "pending_review" | "missing" | "unknown";
             /** @description Metadata only, and only with `evidence:read`. File contents never leave the platform. */
             evidence?: {
                 file_name?: string | null;
@@ -950,7 +950,7 @@ export interface components {
         };
         Report: {
             /** Format: uuid */
-            id?: string;
+            id: string;
             /** Format: uuid */
             assessment_id?: string | null;
             /** Format: uuid */
@@ -964,19 +964,19 @@ export interface components {
             } | null;
             framework_keys?: string[] | null;
             /** Format: date-time */
-            generated_at?: string;
+            generated_at: string;
             /** @description Whether a PDF exists. Fetch it from `/reports/{id'}/pdf`. */
-            has_pdf?: boolean;
+            has_pdf: boolean;
         };
         Asset: {
             /** Format: uuid */
-            id?: string;
-            name?: string;
+            id: string;
+            name: string;
             description?: string | null;
-            asset_type?: components["schemas"]["AssetType"];
-            technical_criticality?: components["schemas"]["Criticality"];
-            exposure?: components["schemas"]["Exposure"];
-            source?: components["schemas"]["AssetSource"];
+            asset_type: components["schemas"]["AssetType"];
+            technical_criticality: components["schemas"]["Criticality"];
+            exposure: components["schemas"]["Exposure"];
+            source: components["schemas"]["AssetSource"];
             cloud_provider?: components["schemas"]["CloudProvider"] | null;
             /** @description Your identifier for this asset. Half of the natural key on upsert. */
             external_id?: string | null;
@@ -984,7 +984,7 @@ export interface components {
             cloud_metadata?: {
                 [key: string]: unknown;
             } | null;
-            review_status?: components["schemas"]["ReviewStatus"];
+            review_status: components["schemas"]["ReviewStatus"];
             /** Format: date-time */
             last_seen_at?: string | null;
             mttr_hours?: number | null;
@@ -992,9 +992,9 @@ export interface components {
             /** Format: uuid */
             area_id?: string | null;
             /** Format: date-time */
-            created_at?: string;
+            created_at: string;
             /** Format: date-time */
-            updated_at?: string;
+            updated_at: string;
         };
         AssetUpsert: {
             source: components["schemas"]["AssetSource"];
@@ -1014,18 +1014,18 @@ export interface components {
             }[];
         };
         AssetUpsertResult: {
-            created?: number;
-            updated?: number;
+            created: number;
+            updated: number;
             /** @description Items that could not be written. The rest of the batch still was. */
-            skipped?: {
+            skipped: {
                 external_id?: string | null;
                 reason?: string;
             }[];
         };
         BusinessProcess: {
             /** Format: uuid */
-            id?: string;
-            name?: string;
+            id: string;
+            name: string;
             description?: string | null;
             criticality?: components["schemas"]["Criticality"] | null;
             /** Format: uuid */
@@ -1038,14 +1038,14 @@ export interface components {
             data_loss_1m_impact?: string | null;
             tech_dependency_notes?: string | null;
             /** Format: date-time */
-            created_at?: string;
+            created_at: string;
             /** Format: date-time */
-            updated_at?: string;
+            updated_at: string;
         };
         ProductService: {
             /** Format: uuid */
-            id?: string;
-            name?: string;
+            id: string;
+            name: string;
             description?: string | null;
             type?: string | null;
             criticality?: components["schemas"]["Criticality"] | null;
@@ -1055,17 +1055,17 @@ export interface components {
             gross_revenue_amount?: number | null;
             revenue_period?: string | null;
             /** Format: date-time */
-            created_at?: string;
+            created_at: string;
             /** Format: date-time */
-            updated_at?: string;
+            updated_at: string;
         };
         /** @description A record of processing under LGPD/GDPR. `owner_name` requires `pii:read`. */
         ProcessingActivity: {
             /** Format: uuid */
-            id?: string;
+            id: string;
             /** Format: uuid */
             business_process_id?: string | null;
-            name?: string;
+            name: string;
             description?: string | null;
             purpose?: string | null;
             legal_basis?: string | null;
@@ -1098,15 +1098,15 @@ export interface components {
             /** Format: date-time */
             canvas_completed_at?: string | null;
             /** Format: date-time */
-            created_at?: string;
+            created_at: string;
             /** Format: date-time */
-            updated_at?: string;
+            updated_at: string;
             /** @description Requires `pii:read`. */
             owner_name?: string;
         };
         BiaAssessment: {
             /** Format: uuid */
-            id?: string;
+            id: string;
             /** Format: uuid */
             product_service_id?: string | null;
             resulting_criticality?: components["schemas"]["Criticality"] | null;
@@ -1125,20 +1125,20 @@ export interface components {
             mtpd_hours?: number | null;
             impact_curve?: Record<string, never> | unknown[] | null;
             /** Format: date-time */
-            created_at?: string;
+            created_at: string;
             /** Format: date-time */
-            updated_at?: string;
+            updated_at: string;
         };
         Threat: {
             /** Format: uuid */
-            id?: string;
-            name?: string;
+            id: string;
+            name: string;
             description?: string | null;
             /** @enum {string} */
-            source?: "manual" | "external_feed" | "derived";
-            severity?: components["schemas"]["ThreatSeverity"];
+            source: "manual" | "external_feed" | "derived";
+            severity: components["schemas"]["ThreatSeverity"];
             /** @enum {string} */
-            status?: "open" | "mitigated" | "accepted";
+            status: "open" | "mitigated" | "accepted";
             /** @description Resolve against NVD. */
             cve_id?: string | null;
             cvss_score?: number | null;
@@ -1148,19 +1148,19 @@ export interface components {
             mitre_technique_id?: string | null;
             mitre_tactic?: string | null;
             /** Format: date-time */
-            created_at?: string;
+            created_at: string;
             /** Format: date-time */
-            updated_at?: string;
+            updated_at: string;
         };
         Risk: {
             /** Format: uuid */
-            id?: string;
+            id: string;
             /** @description Stable public identifier, e.g. `CR-3`. */
-            code?: string;
-            name?: string;
+            code: string;
+            name: string;
             description?: string | null;
             /** @enum {string} */
-            risk_type?: "organizational" | "operational";
+            risk_type: "organizational" | "operational";
             /** Format: uuid */
             parent_id?: string | null;
             category?: components["schemas"]["RiskCategory"] | null;
@@ -1171,9 +1171,9 @@ export interface components {
             /** Format: uuid */
             supplier_id?: string | null;
             /** @enum {string} */
-            status?: "open" | "treated" | "accepted" | "closed";
-            is_default?: boolean;
-            is_active?: boolean;
+            status: "open" | "treated" | "accepted" | "closed";
+            is_default: boolean;
+            is_active: boolean;
             inherent_likelihood?: number | null;
             inherent_impact?: number | null;
             inherent_amount?: number | null;
@@ -1185,25 +1185,25 @@ export interface components {
             /** Format: uuid */
             bia_object_id?: string | null;
             /** Format: date-time */
-            created_at?: string;
+            created_at: string;
             /** Format: date-time */
-            updated_at?: string;
+            updated_at: string;
         };
         RiskTreatment: {
             /** Format: uuid */
-            id?: string;
+            id: string;
             /** Format: uuid */
-            risk_id?: string;
-            name?: string;
+            risk_id: string;
+            name: string;
             description?: string | null;
             kind?: string | null;
             annual_cost?: number | null;
             expected_residual_amount?: number | null;
             status?: string | null;
             /** Format: date-time */
-            created_at?: string;
+            created_at: string;
             /** Format: date-time */
-            updated_at?: string;
+            updated_at: string;
         };
         RiskScoreHistoryPoint: {
             /** Format: uuid */
@@ -1243,7 +1243,7 @@ export interface components {
              */
             scope: "CyberRiskMatrixRow";
             /** Format: uuid */
-            id?: string;
+            id: string;
             /** Format: uuid */
             asset_id?: string | null;
             vulnerability_score?: number | null;
@@ -1258,7 +1258,7 @@ export interface components {
             /** Format: date-time */
             calculated_at?: string | null;
             /** Format: date-time */
-            created_at?: string;
+            created_at: string;
         };
         OrganizationalRiskMatrixRow: {
             /**
@@ -1267,8 +1267,8 @@ export interface components {
              */
             scope: "OrganizationalRiskMatrixRow";
             /** Format: uuid */
-            id?: string;
-            domain?: string;
+            id: string;
+            domain: string;
             risk_score?: number | null;
             risk_band?: components["schemas"]["RiskBand"] | null;
             exposure_amount?: number | null;
@@ -1276,18 +1276,18 @@ export interface components {
             /** Format: date-time */
             calculated_at?: string | null;
             /** Format: date-time */
-            created_at?: string;
+            created_at: string;
         };
         RiskAcceptanceLetter: {
             /** Format: uuid */
-            id?: string;
+            id: string;
             /** @enum {string} */
-            source_type?: "org_risk_matrix" | "assessment_decision";
+            source_type: "org_risk_matrix" | "assessment_decision";
             /** Format: uuid */
             assessment_id?: string | null;
             trigger_domain?: string | null;
             trigger_risk_score?: number | null;
-            justification?: string;
+            justification: string;
             residual_exposure_amount?: number | null;
             compensating_controls?: string | null;
             /**
@@ -1300,18 +1300,18 @@ export interface components {
             /** Format: date-time */
             valid_until?: string | null;
             /** @enum {string} */
-            status?: "active" | "expired" | "revoked";
+            status: "active" | "expired" | "revoked";
             /** Format: date-time */
             revoked_at?: string | null;
             revocation_reason?: string | null;
             /** Format: date-time */
-            created_at?: string;
+            created_at: string;
             /** Format: date-time */
-            updated_at?: string;
+            updated_at: string;
         };
         ActionPlan: {
             /** Format: uuid */
-            id?: string;
+            id: string;
             /** Format: uuid */
             supplier_id?: string | null;
             title?: string | null;
@@ -1324,20 +1324,20 @@ export interface components {
             /** Format: date-time */
             completed_at?: string | null;
             /** Format: date-time */
-            created_at?: string;
+            created_at: string;
             /** Format: date-time */
-            updated_at?: string;
+            updated_at: string;
         };
         ActionPlanItem: {
             /** Format: uuid */
-            id?: string;
+            id: string;
             /** Format: uuid */
-            action_plan_id?: string;
+            action_plan_id: string;
             action_description?: string | null;
             expected_result?: string | null;
             /** Format: date-time */
             due_date?: string | null;
-            status?: components["schemas"]["ActionPlanItemStatus"];
+            status: components["schemas"]["ActionPlanItemStatus"];
             /** Format: date-time */
             status_updated_at?: string | null;
             /** @enum {string|null} */
@@ -1346,9 +1346,9 @@ export interface components {
             /** Format: date-time */
             gap_detected_at?: string | null;
             /** Format: date-time */
-            created_at?: string;
+            created_at: string;
             /** Format: date-time */
-            updated_at?: string;
+            updated_at: string;
             /** @description Only on `/action-plans/{id'}/items`. Null when the item has no control. */
             control_code?: string | null;
             /** @description Only on `/action-plans/{id'}/items`. */
@@ -1365,15 +1365,15 @@ export interface components {
          */
         Alert: {
             /** Format: uuid */
-            id?: string;
+            id: string;
             /** @enum {string} */
-            scope?: "supplier" | "org";
-            severity?: components["schemas"]["AlertSeverity"];
-            title?: string;
+            scope: "supplier" | "org";
+            severity: components["schemas"]["AlertSeverity"];
+            title: string;
             body?: string | null;
-            resolved?: boolean;
+            resolved: boolean;
             /** Format: date-time */
-            created_at?: string;
+            created_at: string;
             /**
              * Format: uuid
              * @description Supplier scope only.
@@ -1400,18 +1400,18 @@ export interface components {
         };
         Insight: {
             /** Format: uuid */
-            id?: string;
-            category?: components["schemas"]["InsightCategory"];
-            severity?: components["schemas"]["AlertSeverity"];
-            title?: string;
+            id: string;
+            category: components["schemas"]["InsightCategory"];
+            severity: components["schemas"]["AlertSeverity"];
+            title: string;
             body?: string | null;
             /** Format: date-time */
-            generated_at?: string;
+            generated_at: string;
         };
         AuditLog: {
             /** Format: uuid */
-            id?: string | number;
-            event_type?: string;
+            id: string | number;
+            event_type: string;
             payload?: {
                 [key: string]: unknown;
             } | null;
@@ -1422,54 +1422,54 @@ export interface components {
              */
             acted_by?: string | null;
             /** Format: date-time */
-            created_at?: string;
+            created_at: string;
         };
         WebhookEndpoint: {
             /** Format: uuid */
-            id?: string;
+            id: string;
             /** Format: uri */
-            url?: string;
+            url: string;
             description?: string | null;
             /** @description Enough to tell endpoints apart. The secret itself is shown only once, at creation. */
-            secret_prefix?: string;
-            events?: components["schemas"]["WebhookEvent"][];
-            is_active?: boolean;
+            secret_prefix: string;
+            events: components["schemas"]["WebhookEvent"][];
+            is_active: boolean;
             /** Format: date-time */
-            created_at?: string;
+            created_at: string;
             /** Format: date-time */
             last_success_at?: string | null;
             /** Format: date-time */
             last_failure_at?: string | null;
             /** @description Ten in a row disables the endpoint automatically. */
-            consecutive_failures?: number;
+            consecutive_failures: number;
             /** Format: date-time */
             disabled_at?: string | null;
             disabled_reason?: string | null;
         };
         WebhookDelivery: {
             /** Format: uuid */
-            id?: string;
+            id: string;
             /** Format: uuid */
-            endpoint_id?: string;
+            endpoint_id: string;
             /**
              * Format: uuid
              * @description Stable across every retry. Deduplicate on this.
              */
-            event_id?: string;
-            event_type?: components["schemas"]["WebhookEvent"];
-            attempt?: number;
-            status?: components["schemas"]["DeliveryStatus"];
+            event_id: string;
+            event_type: components["schemas"]["WebhookEvent"];
+            attempt: number;
+            status: components["schemas"]["DeliveryStatus"];
             response_status?: number | null;
             response_snippet?: string | null;
             error?: string | null;
             /** Format: date-time */
-            scheduled_for?: string;
+            scheduled_for: string;
             /** Format: date-time */
             delivered_at?: string | null;
             /** Format: date-time */
-            created_at?: string;
+            created_at: string;
             /** @description The exact body we sent. */
-            payload?: {
+            payload: {
                 [key: string]: unknown;
             };
         };

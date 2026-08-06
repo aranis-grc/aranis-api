@@ -13,7 +13,13 @@
   "bugs": {
     "url": "https://github.com/paulojoy/aranis-api/issues"
   },
-  "keywords": ["aranis", "tprm", "third-party-risk", "grc", "api-client"],
+  "keywords": [
+    "aranis",
+    "tprm",
+    "third-party-risk",
+    "grc",
+    "api-client"
+  ],
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -23,7 +29,11 @@
       "import": "./dist/index.js"
     }
   },
-  "files": ["dist", "README.md"],
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "engines": {
     "node": ">=18"
   },
