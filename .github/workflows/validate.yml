@@ -3,6 +3,10 @@ name: validate
 on:
   push:
     branches: [main]
+  # Lets the documentation site be rebuilt without inventing a contract change —
+  # useful after fixing the deploy hook, or to recover a site build that failed for an
+  # unrelated reason.
+  workflow_dispatch:
   pull_request:
 
 jobs:
@@ -86,7 +90,7 @@ jobs:
     # Only after the contract has been validated, and only on main — a broken spec must
     # not reach the documentation site.
     needs: [spec, sdk]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -96,6 +100,11 @@ jobs:
       - name: Did the contract itself change?
         id: changed
         run: |
+          # A manual run is an explicit request to republish, so it skips the check.
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "touched=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           if git diff --name-only HEAD^ HEAD \
                | grep -qE '^(openapi\.yaml|postman/)'; then
             echo "touched=true" >> "$GITHUB_OUTPUT"
