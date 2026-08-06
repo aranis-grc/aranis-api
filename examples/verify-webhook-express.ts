@@ -1,7 +1,7 @@
 /**
  * Receiving Aranis webhooks in Express.
  *
- *   npm install express @aranis/api
+ *   npm install express @aranis-ai/api
  *   ARANIS_WEBHOOK_SECRET=whsec_... npx tsx verify-webhook-express.ts
  *
  * The two things that trip people up are both here:
@@ -12,7 +12,7 @@
  */
 
 import express from 'express'
-import { verifyWebhook, WebhookVerificationError, AranisClient } from '@aranis/api'
+import { verifyWebhook, WebhookVerificationError, AranisClient } from '@aranis-ai/api'
 
 const app = express()
 const secret = process.env.ARANIS_WEBHOOK_SECRET!

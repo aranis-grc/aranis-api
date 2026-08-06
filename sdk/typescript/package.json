@@ -1,5 +1,5 @@
 {
-  "name": "@aranis/api",
+  "name": "@aranis-ai/api",
   "version": "1.0.0",
   "description": "Official TypeScript client for the Aranis API — third-party risk, cyber risk and privacy data.",
   "license": "MIT",

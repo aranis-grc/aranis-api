@@ -17,5 +17,5 @@ First public version.
 - Four write endpoints: create supplier, create assessment, bulk upsert assets, update
   an action plan item's status.
 - Four webhook events with HMAC-SHA256 signatures and at-least-once delivery.
-- `@aranis/api` TypeScript SDK.
+- `@aranis-ai/api` TypeScript SDK.
 - Postman collection and environment.

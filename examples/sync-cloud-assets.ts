@@ -10,7 +10,7 @@
  * Requires the `assets:write` scope.
  */
 
-import { AranisClient, AranisApiError } from '@aranis/api'
+import { AranisClient, AranisApiError } from '@aranis-ai/api'
 
 const aranis = new AranisClient({ apiKey: process.env.ARANIS_API_KEY! })
 

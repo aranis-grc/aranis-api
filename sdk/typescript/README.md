@@ -1,4 +1,4 @@
-# @aranis/api
+# @aranis-ai/api
 
 Official TypeScript client for the [Aranis](https://aranis.ai) API — third-party risk,
 cyber risk and privacy data from your workspace.
@@ -7,13 +7,13 @@ cyber risk and privacy data from your workspace.
 📦 [Contract and examples](https://github.com/paulojoy/aranis-api)
 
 ```bash
-npm install @aranis/api
+npm install @aranis-ai/api
 ```
 
 ## Quick start
 
 ```ts
-import { AranisClient } from '@aranis/api'
+import { AranisClient } from '@aranis-ai/api'
 
 const aranis = new AranisClient({ apiKey: process.env.ARANIS_API_KEY! })
 
@@ -52,7 +52,7 @@ const critical = await aranis.collect(
 **Typed errors.** Branch on `code`, never on the message.
 
 ```ts
-import { AranisApiError } from '@aranis/api'
+import { AranisApiError } from '@aranis-ai/api'
 
 try {
   await aranis.createSupplier({ name: 'Acme', email: 'security@acme.com' }, 'crm-8842')
@@ -80,7 +80,7 @@ Signatures use the same scheme as Stripe, so an existing validator works with on
 header name changed.
 
 ```ts
-import { verifyWebhook, WebhookVerificationError } from '@aranis/api'
+import { verifyWebhook, WebhookVerificationError } from '@aranis-ai/api'
 
 try {
   const event = verifyWebhook({

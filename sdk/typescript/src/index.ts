@@ -1,8 +1,8 @@
 /**
- * `@aranis/api` — the official TypeScript client for the Aranis API.
+ * `@aranis-ai/api` — the official TypeScript client for the Aranis API.
  *
  * ```ts
- * import { AranisClient } from '@aranis/api'
+ * import { AranisClient } from '@aranis-ai/api'
  *
  * const aranis = new AranisClient({ apiKey: process.env.ARANIS_API_KEY! })
  *

@@ -75,7 +75,7 @@ export class AranisClient {
     const headers: Record<string, string> = {
       Authorization: `Bearer ${this.#apiKey}`,
       Accept: 'application/json',
-      'User-Agent': '@aranis/api-node',
+      'User-Agent': '@aranis-ai/api-node',
     }
     if (options.body !== undefined) headers['Content-Type'] = 'application/json'
     if (options.idempotencyKey) headers['Idempotency-Key'] = options.idempotencyKey

@@ -16,17 +16,17 @@ Postman collection, TypeScript SDK and runnable examples.
 |---|---|
 | [`openapi.yaml`](./openapi.yaml) | OpenAPI 3.1 specification — the source of truth |
 | [`postman/`](./postman) | Postman collection and environment, generated from the spec |
-| [`sdk/typescript/`](./sdk/typescript) | `@aranis/api` — the official TypeScript client |
+| [`sdk/typescript/`](./sdk/typescript) | `@aranis-ai/api` — the official TypeScript client |
 | [`examples/`](./examples) | Runnable examples in TypeScript, Python and curl |
 
 ## Quick start
 
 ```bash
-npm install @aranis/api
+npm install @aranis-ai/api
 ```
 
 ```ts
-import { AranisClient } from '@aranis/api'
+import { AranisClient } from '@aranis-ai/api'
 
 const aranis = new AranisClient({ apiKey: process.env.ARANIS_API_KEY! })
 
@@ -114,7 +114,7 @@ Signatures use the same scheme as Stripe, so an existing validator works with on
 header name changed:
 
 ```ts
-import { verifyWebhook } from '@aranis/api'
+import { verifyWebhook } from '@aranis-ai/api'
 
 // rawBody must be the exact bytes received — re-serializing parsed JSON breaks the signature.
 const event = verifyWebhook({
