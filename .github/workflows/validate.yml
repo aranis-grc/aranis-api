@@ -23,9 +23,6 @@ jobs:
     name: Standard
     uses: aranis-grc/.github/.github/workflows/standard-ci.yml@main
     secrets: inherit
-    with:
-      typecheck: false
-      lint: false
 
   spec:
     name: OpenAPI contract
