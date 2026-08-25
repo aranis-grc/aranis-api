@@ -10,6 +10,24 @@ on:
   pull_request:
 
 jobs:
+  # ONE of the four shared jobs, and the three omissions are deliberate.
+  #
+  # There is no package.json here: this repository is the published API contract —
+  # an OpenAPI document and a Postman collection — not an application. typecheck,
+  # lint and audit have nothing to read, and switching them on would produce a job
+  # that fails for the honest reason that it does not apply.
+  #
+  # The secret scan does apply, and applies especially: this is the repository whose
+  # whole purpose is to be read by people outside the company.
+  standard:
+    name: Standard
+    uses: aranis-grc/.github/.github/workflows/standard-ci.yml@main
+    secrets: inherit
+    with:
+      typecheck: false
+      lint: false
+      audit: false
+
   spec:
     name: OpenAPI contract
     runs-on: ubuntu-latest
