@@ -26,7 +26,6 @@ jobs:
     with:
       typecheck: false
       lint: false
-      audit: false
 
   spec:
     name: OpenAPI contract
