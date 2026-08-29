@@ -28,7 +28,11 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # 22 and not 20: @changesets/cli@3 calls module.enableCompileCache(),
+          # which arrived in Node 22.11. On 20 the release fails at the very last
+          # step -- after versioning, while writing the tag -- with
+          # "TypeError: enableCompileCache is not a function".
+          node-version: 22
           cache: npm
       - run: npm ci
       # Opens a "Version Packages" PR while changesets are pending; writes the git
