@@ -35,22 +35,37 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      # Opens a "Version Packages" PR while changesets are pending; writes the git
-      # tag when that PR lands.
+      # Opens a "Version Packages" PR while changesets are pending, and does
+      # nothing else. This package is private and goes to no registry, so there is
+      # no `publish` input here — the tag is written by the step below instead,
+      # for the reason spelled out there.
       #
-      # The sync step runs INSIDE the version command, not as a job of its own, so
-      # the propagated files land in the same "Version Packages" commit as the
-      # bump. Split across two commits, the repository has a window in which
+      # The sync runs INSIDE the version command, not as a job of its own, so the
+      # propagated files land in the same "Version Packages" commit as the bump.
+      # Split across two commits, the repository has a window in which
       # package.json and the files it feeds disagree.
       #
-      # `changeset tag` and not `changeset publish`: this package is private and
-      # goes to no registry. The command only finds something to tag because
-      # `privatePackages.tag` is true in .changeset/config.json — the two settings
-      # are a pair, and dropping either one makes the release succeed silently
-      # while producing no tag at all.
+      # Tagging at all depends on `privatePackages.tag` being true in
+      # .changeset/config.json. Without it the tag command finds nothing to tag
+      # in a private package and exits successfully, in silence.
       - uses: changesets/action@v1
         with:
           version: npx changeset version && node scripts/sync-version.mjs
-          publish: npx changeset tag
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # The tag is written HERE and not through the action's `publish` input.
+      # changesets/action@v1 pushes only what it can parse out of that command's
+      # stdout, and its pattern matches v2's "New tag:" line. v3 prints
+      # "Created git tags:" followed by a list instead, so the action parses
+      # nothing, pushes nothing, and the run still goes GREEN. Measured, not
+      # assumed: two repositories got their tag under v2 and three identical ones
+      # got none under v3, with every run reporting success.
+      #
+      # `git-tag` is v3's name for what v2 called `tag`. It is idempotent: a run
+      # with the tag already in place answers "did not find any packages that
+      # need to be tagged" and exits 0, so this is safe on every push to main.
+      - name: Write and push the tag
+        run: |
+          npx changeset git-tag
+          git push origin --tags
