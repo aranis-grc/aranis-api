@@ -8,6 +8,6 @@
     "sync-version": "node scripts/sync-version.mjs"
   },
   "devDependencies": {
-    "@changesets/cli": "^2.31.1"
+    "@changesets/cli": "^3.0.1"
   }
 }
