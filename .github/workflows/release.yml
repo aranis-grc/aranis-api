@@ -1,0 +1,52 @@
+name: Release
+
+# Cuts the version number. Nothing else in this repository is allowed to write it:
+# a number typed by hand drifts from the tag, and the drift is invisible until
+# someone needs to say which version an incident happened on.
+#
+# A push with no pending changeset is a no-op. This workflow living on `main` does
+# not mean every merge produces a release.
+
+on:
+  push:
+    branches: [main]
+
+concurrency: release
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # `changeset version` walks every commit back to the previous tag. A
+          # shallow checkout hides them and the changelog comes out empty without
+          # anything failing.
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      # Opens a "Version Packages" PR while changesets are pending; writes the git
+      # tag when that PR lands.
+      #
+      # The sync step runs INSIDE the version command, not as a job of its own, so
+      # the propagated files land in the same "Version Packages" commit as the
+      # bump. Split across two commits, the repository has a window in which
+      # package.json and the files it feeds disagree.
+      #
+      # `changeset tag` and not `changeset publish`: this package is private and
+      # goes to no registry. The command only finds something to tag because
+      # `privatePackages.tag` is true in .changeset/config.json — the two settings
+      # are a pair, and dropping either one makes the release succeed silently
+      # while producing no tag at all.
+      - uses: changesets/action@v1
+        with:
+          version: npx changeset version && node scripts/sync-version.mjs
+          publish: npx changeset tag
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
