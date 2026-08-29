@@ -10,6 +10,12 @@ name: Release
 on:
   push:
     branches: [main]
+  # Manual trigger. Without it the only way to ask for a release again is another
+  # commit — which is how the same gap was found in this organization's CI, and
+  # is written up in training-aranis/.github/workflows/ci.yml. A release that
+  # failed for an environment reason should be repeatable without inventing a
+  # change to the code.
+  workflow_dispatch:
 
 concurrency: release
 
