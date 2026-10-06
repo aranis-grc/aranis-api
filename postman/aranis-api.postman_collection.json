@@ -465,6 +465,26 @@
             "description": "**Scope required:** `reports:read`\n\nRedirects to a signed URL valid for five minutes. The stored object path is never\nreturned, so a redirect captured in a proxy log stops working almost immediately\ninstead of granting standing access.\n\nConfigure your HTTP client to follow redirects. This endpoint has its own hourly\nlimit of 60 requests, separate from the standard buckets.\n\n`GET /v1/reports/{id}/pdf`"
           },
           "response": []
+        },
+        {
+          "name": "Portfolio adherence by requirement",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/adherence",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "adherence"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "**Scope required:** `reports:read`\n\nReads the whole supplier portfolio against the standards your workspace has\nchosen, and returns the requirements the portfolio fails most.\n\nIt answers a question no other endpoint does: *which requirement does my\nportfolio fail most*. You could list reports and read each supplier's coverage\ninstead, but folding that into a portfolio view outside Aranis means\nreimplementing the binary met/unmet rule and the lens cascade — and any drift\nbetween the two readings shows up as this API disagreeing with the screens.\n\nThe standards are not a parameter. They come from the same resolver the\ndashboard and the deck use, so the API can never report against a different set\nof norms than your own screens do; `lens_source` tells you which level of the\ncascade supplied them.\n\n**Not paginated, deliberately.** The payload is bounded by the number of lenses\ntimes a fixed cap of 15 worst requirements each. Nothing here grows with the\nsize of your workspace except the counts inside it.\n\n`GET /v1/adherence`"
+          },
+          "response": []
         }
       ]
     },

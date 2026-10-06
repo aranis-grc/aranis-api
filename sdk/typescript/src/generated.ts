@@ -191,6 +191,42 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/adherence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Portfolio adherence by requirement
+         * @description Reads the whole supplier portfolio against the standards your workspace has
+         *     chosen, and returns the requirements the portfolio fails most.
+         *
+         *     It answers a question no other endpoint does: *which requirement does my
+         *     portfolio fail most*. You could list reports and read each supplier's coverage
+         *     instead, but folding that into a portfolio view outside Aranis means
+         *     reimplementing the binary met/unmet rule and the lens cascade — and any drift
+         *     between the two readings shows up as this API disagreeing with the screens.
+         *
+         *     The standards are not a parameter. They come from the same resolver the
+         *     dashboard and the deck use, so the API can never report against a different set
+         *     of norms than your own screens do; `lens_source` tells you which level of the
+         *     cascade supplied them.
+         *
+         *     **Not paginated, deliberately.** The payload is bounded by the number of lenses
+         *     times a fixed cap of 15 worst requirements each. Nothing here grows with the
+         *     size of your workspace except the counts inside it.
+         */
+        get: operations["getAdherence"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/assets": {
         parameters: {
             query?: never;
@@ -967,6 +1003,58 @@ export interface components {
             generated_at: string;
             /** @description Whether a PDF exists. Fetch it from `/reports/{id'}/pdf`. */
             has_pdf: boolean;
+        };
+        AdherenceRequirement: {
+            /** @description The requirement's reference within its standard, e.g. `PR.AC-1`. */
+            ref: string;
+            /**
+             * @description What kind of reference `ref` is within its own standard — subcategory,
+             *     article, clause. The vocabulary belongs to each norm, so this is an open
+             *     string rather than an enum.
+             */
+            ref_kind: string;
+            /** @description Suppliers where at least one control applies to this requirement. */
+            suppliers_applicable: number;
+            /** @description Of those, how many do not meet it. Binary rule: partial is unmet. */
+            suppliers_unmet: number;
+        };
+        AdherenceStandard: {
+            /** @description The framework key inside Aranis. */
+            key: string;
+            display_name: string;
+            /** @description The normative standard the key reads against. */
+            standard: string;
+            /** @description Suppliers with a completed assessment that touches this norm. */
+            suppliers: number;
+            /** @description Requirements of the norm with at least one applicable control. */
+            requirements: number;
+            /**
+             * Format: float
+             * @description Mean of each supplier's own adherence, 0..1, rounded to four decimals.
+             *
+             *     **This is a lens, never a score.** It says how much of what was assessed
+             *     lines up with this norm — it is not a risk rating, and it is not comparable
+             *     to the risk scores elsewhere in this API.
+             */
+            average_adherence: number;
+            /** @description Requirements ordered by how much of the portfolio fails them, worst first. Capped at 15. */
+            worst_requirements: components["schemas"]["AdherenceRequirement"][];
+        };
+        Adherence: {
+            /** @constant */
+            object: "adherence";
+            /**
+             * @description Which level of the cascade supplied the standards. `supplier` and `org` mean
+             *     a deliberate choice was found at that level; `fallback` means neither was
+             *     set and the platform default was used. `report` is not reachable here — this
+             *     endpoint resolves without a report snapshot — and is listed because the
+             *     underlying vocabulary is shared with the report reading.
+             * @enum {string}
+             */
+            lens_source: "report" | "supplier" | "org" | "fallback";
+            /** @description Suppliers with a completed assessment behind the whole reading. */
+            assessed_suppliers: number;
+            standards: components["schemas"]["AdherenceStandard"][];
         };
         Asset: {
             /** Format: uuid */
@@ -2120,6 +2208,29 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    getAdherence: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The portfolio reading. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Adherence"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             429: components["responses"]["RateLimited"];
         };
     };
