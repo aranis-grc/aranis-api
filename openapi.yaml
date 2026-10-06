@@ -21,7 +21,10 @@ info:
     Authorization: Bearer ara_live_...
     ```
 
-    Keys are created in the Aranis app under **Settings → Integrations**. The secret is
+    Keys are created in the Aranis app under **Settings → Integrations → API keys**:
+    choose **REST API v1** as the key's purpose and tick the scopes it needs, per
+    resource. A key created for the MCP connector carries no v1 scope and receives
+    `403 insufficient_scope` here. The secret is
     shown once, at creation. Each key carries an explicit set of scopes and belongs to
     exactly one workspace — the workspace is always derived from the key, which is why
     no endpoint accepts an organization identifier as input.
@@ -1365,7 +1368,8 @@ components:
       scheme: bearer
       description: |
         `Authorization: Bearer <key>`. Keys are created in the Aranis app under
-        Settings → Integrations and carry an explicit scope set. The workspace is always
+        Settings → Integrations → API keys, with the purpose "REST API v1", and carry
+        an explicit scope set. The workspace is always
         derived from the key.
 
   parameters:
