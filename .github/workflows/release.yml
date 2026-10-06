@@ -32,6 +32,12 @@ jobs:
           # shallow checkout hides them and the changelog comes out empty without
           # anything failing.
           fetch-depth: 0
+          # Without this, checkout pins GITHUB_TOKEN into an http.extraheader that
+          # outranks the ~/.netrc changesets/action writes, so the release branch
+          # would still be pushed as GITHUB_TOKEN and the Version Packages PR would
+          # get no `synchronize` checks. With it off, every later git call in this
+          # job authenticates with whatever token the changesets step was given.
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           # 22 and not 20: @changesets/cli@3 calls module.enableCompileCache(),
@@ -41,6 +47,27 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # WHY A SEPARATE TOKEN FOR THE RELEASE PR.
+      #
+      # Events created with GITHUB_TOKEN do not trigger workflows (GitHub's rule
+      # against recursion, no exceptions). The "Version Packages" PR this job opens
+      # therefore arrived with zero checks, and the required checks on `main` left it
+      # BLOCKED until someone closed and reopened it. A GitHub App installation token
+      # is a distinct actor, so the PR and the pushes to its branch do trigger CI.
+      #
+      # The App's Client ID lives in the org VARIABLE RELEASE_APP_CLIENT_ID and its
+      # private key in the org SECRET RELEASE_APP_PRIVATE_KEY. While the variable is
+      # unset this step is skipped and the release runs on GITHUB_TOKEN exactly as
+      # before; if minting fails (App not installed on this repository, key revoked)
+      # continue-on-error keeps the same fallback instead of failing the release.
+      - name: Mint release token
+        id: release-token
+        if: vars.RELEASE_APP_CLIENT_ID != ''
+        continue-on-error: true
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
       # Opens a "Version Packages" PR while changesets are pending, and does
       # nothing else. This package is private and goes to no registry, so there is
       # no `publish` input here — the tag is written by the step below instead,
@@ -58,7 +85,7 @@ jobs:
         with:
           version: npx changeset version && node scripts/sync-version.mjs
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.release-token.outputs.token || secrets.GITHUB_TOKEN }}
 
       # The tag is written HERE and not through the action's `publish` input.
       # changesets/action@v1 pushes only what it can parse out of that command's
