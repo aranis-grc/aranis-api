@@ -1378,11 +1378,8 @@ export interface components {
             justification: string;
             residual_exposure_amount?: number | null;
             compensating_controls?: string | null;
-            /**
-             * @description The approval level this exposure required.
-             * @enum {string|null}
-             */
-            required_level?: "manager" | "director" | "board" | null;
+            /** @description Key of the organization's approval level this exposure required. The built-ins are manager, director and board; an organization may define its own levels (e.g. cfo), so treat this as an open string. */
+            required_level?: string | null;
             /** Format: date-time */
             valid_from?: string | null;
             /** Format: date-time */
