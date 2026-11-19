@@ -19,3 +19,20 @@ First public version.
 - Four webhook events with HMAC-SHA256 signatures and at-least-once delivery.
 - `@aranis-ai/api` TypeScript SDK.
 - Postman collection and environment.
+
+### Changed
+
+The write endpoints now follow the same rules as the Aranis app. These rules were
+applied before 1.0.0 was released, when no integration had written through the API yet.
+
+- `PATCH /v1/action-plan-items/{id}`: an item becomes `completed` only after at least
+  one of its evidences is approved; otherwise the response is `409 conflict` with
+  `details.reason = evidence_required`. When every item of a plan reaches a final status,
+  the plan is completed. The `action_plan_item.status_changed` event gains
+  `plan_completed`.
+- `POST /v1/suppliers`: when `domain` is omitted, it is taken from `email`, unless the
+  address belongs to a free mail provider. The duplicate-domain check ignores case.
+- `POST /v1/assessments`: a `supplier` assessment requires `vendor_profile` (P1, P2 or
+  P3) and one to ten `respondent_emails`. A `deadline` must be in the future. A supplier
+  with an open assessment (draft, sent or in progress) is refused with `409` and
+  `details.existing_assessment_id`. Self-assessments are unchanged.
