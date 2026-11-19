@@ -410,6 +410,15 @@ export interface paths {
          * @description Returns a single-element `data` array holding `current` and `history`. It is a
          *     time series bounded by `from`/`to` rather than a cursor-paged collection, so
          *     `next_cursor` is always null.
+         *
+         *     **Methodology.** Every point carries `methodology_version`. From version 2 on,
+         *     `score_final` is a **risk** score, 0–100, **higher is worse**: the weighted mean
+         *     of the *measured* pillars only (`cyber`, `tprm`, `privacy`, `continuity`, `ai`,
+         *     `human`), each in `pillars.<pillar>` with its score, whether it was measured, its
+         *     base and its effective weight. An unmeasured pillar is left out of the mean; it is
+         *     never counted as 0 or 100. Version 1 points (posture, higher is better, over three
+         *     supplier pillars) stay in `history` with `methodology_version = 1`. Never compare or
+         *     subtract scores of different versions.
          */
         get: operations["getRiskScores"];
         put?: never;
@@ -1293,16 +1302,68 @@ export interface components {
             /** Format: date-time */
             updated_at: string;
         };
+        /** @description One pillar of a methodology version 2 score. */
+        RiskScorePillar: {
+            /** @description Risk, 0–100, higher is worse. Null when the pillar is not measured. */
+            score?: number | null;
+            measured?: boolean;
+            /**
+             * @description What the number stands on: declared controls (`cyber`, `ai`), supplier
+             *     assessments (`tprm`), risks in the register (`privacy`), critical products and
+             *     services (`continuity`).
+             */
+            base?: number | null;
+            /** @description Configured weight of the pillar (default 1). Weights are relative. */
+            weight?: number;
+            /** @description Share of `score_final`, 0–1, over measured pillars. Null when not measured. */
+            weight_effective?: number | null;
+        };
+        /**
+         * @description Version 2 breakdown. For version 1 points this object has the older shape
+         *     (`tprm`, `cyber`, `ai`, `human` with a `score` that is posture, higher is better);
+         *     read `methodology_version` first.
+         */
+        RiskScorePillars: {
+            cyber?: components["schemas"]["RiskScorePillar"];
+            tprm?: components["schemas"]["RiskScorePillar"];
+            privacy?: components["schemas"]["RiskScorePillar"];
+            continuity?: components["schemas"]["RiskScorePillar"];
+            ai?: components["schemas"]["RiskScorePillar"];
+            human?: components["schemas"]["RiskScorePillar"];
+            /** @description Pillars with data, out of six. */
+            measured_count?: number;
+            methodology_version?: number;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * @description 1 = posture, higher is better, over three supplier pillars. 2 = risk, higher is
+         *     worse, weighted mean of the measured pillars of six.
+         * @enum {integer}
+         */
+        RiskScoreMethodologyVersion: 1 | 2;
         RiskScoreHistoryPoint: {
             /** Format: uuid */
             id?: string;
+            /** @description Organizational score on the scale of `methodology_version`. */
             score_final?: number | null;
+            methodology_version?: components["schemas"]["RiskScoreMethodologyVersion"];
+            /**
+             * @deprecated
+             * @description Version 1 meaning (supplier compliance, 100 − supplier risk). Use `pillars.tprm`.
+             */
             score_tprm?: number | null;
+            /**
+             * @deprecated
+             * @description Version 1 meaning (suppliers' cyber maturity). Use `pillars.cyber`.
+             */
             score_cyber?: number | null;
+            /**
+             * @deprecated
+             * @description Use `pillars.human`.
+             */
             score_human?: number | null;
-            pillars?: {
-                [key: string]: unknown;
-            } | null;
+            pillars?: components["schemas"]["RiskScorePillars"] | null;
             rc_composite?: number | null;
             /** Format: date-time */
             recorded_at?: string;
@@ -1310,10 +1371,29 @@ export interface components {
         RiskScoreSeries: {
             /** @description The most recent calculation. Null if none has run. */
             current?: {
+                /** @description Organizational score on the scale of `methodology_version`. */
                 score_final?: number | null;
+                methodology_version?: components["schemas"]["RiskScoreMethodologyVersion"];
+                pillars?: components["schemas"]["RiskScorePillars"] | null;
+                /**
+                 * @deprecated
+                 * @description Version 1 meaning (supplier compliance, 100 − supplier risk). Use `pillars.tprm`.
+                 */
                 score_tprm?: number | null;
+                /**
+                 * @deprecated
+                 * @description Version 1 meaning (suppliers' cyber maturity). Use `pillars.cyber`.
+                 */
                 score_cyber?: number | null;
+                /**
+                 * @deprecated
+                 * @description Use `pillars.human`.
+                 */
                 score_human?: number | null;
+                /**
+                 * @deprecated
+                 * @description Version 1 meaning (suppliers' AI maturity). Use `pillars.ai`.
+                 */
                 score_ai?: number | null;
                 weights?: {
                     [key: string]: unknown;

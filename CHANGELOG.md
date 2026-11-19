@@ -36,3 +36,10 @@ applied before 1.0.0 was released, when no integration had written through the A
   P3) and one to ten `respondent_emails`. A `deadline` must be in the future. A supplier
   with an open assessment (draft, sent or in progress) is refused with `409` and
   `details.existing_assessment_id`. Self-assessments are unchanged.
+- `GET /v1/risk-scores`: the organizational score is now a **risk** score, 0–100, where
+  higher is worse: the weighted mean of six pillars (`cyber`, `tprm`, `privacy`,
+  `continuity`, `ai`, `human`), counting only the pillars that have data. Each point has
+  `methodology_version` (`2` for the new score, `1` for earlier points, which stay in the
+  history unchanged) and `pillars` with score, base and weight per pillar. `score_tprm`,
+  `score_cyber`, `score_ai` and `score_human` are deprecated and keep their version 1
+  meaning; read `pillars` instead. Do not compare scores of different versions.
