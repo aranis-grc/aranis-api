@@ -198,8 +198,11 @@ paths:
         Registers a supplier in the workspace.
 
         Suppliers created through the API always land with `source: "import"`, whatever
-        the request says. When `domain` is given it is deduplicated within the workspace:
-        a second supplier on the same domain is rejected with `409` and the existing id.
+        the request says. The same rule as the Aranis app applies: when `domain` is
+        omitted it is taken from `email`, unless that is a free mail provider (gmail.com,
+        outlook.com and the like); the domain is deduplicated within the workspace,
+        ignoring case, and a second supplier on the same domain is rejected with `409`
+        and the existing id.
       security:
         - bearerAuth: [suppliers:write]
       parameters:
@@ -340,6 +343,13 @@ paths:
 
         Supplier assessments consume the workspace's assessment quota; self-assessments
         do not.
+
+        A supplier assessment follows the same rule as the Aranis app: it needs a
+        `vendor_profile` (P1, P2 or P3) and one to ten `respondent_emails`, so the draft
+        can be sent from the app; a `deadline`, when given, must be in the future; and a
+        supplier that already has an open assessment (draft, sent or in progress) is
+        refused with `409` and `details.existing_assessment_id`. Without `validity_days`,
+        the workspace's configured window for the profile applies.
       security:
         - bearerAuth: [assessments:write]
       parameters:
@@ -352,7 +362,9 @@ paths:
             example:
               supplier_id: 3f1a8c2e-9b47-4d51-a0e6-2c7d8f4b1a93
               assessment_type: supplier
-              deadline: '2026-09-30T23:59:59Z'
+              vendor_profile: P2
+              respondent_emails: [security@acme.com]
+              deadline: '2027-03-31T23:59:59Z'
               validity_days: 365
       responses:
         '201':
@@ -943,15 +955,6 @@ paths:
         Returns a single-element `data` array holding `current` and `history`. It is a
         time series bounded by `from`/`to` rather than a cursor-paged collection, so
         `next_cursor` is always null.
-
-        **Methodology.** Every point carries `methodology_version`. From version 2 on,
-        `score_final` is a **risk** score, 0–100, **higher is worse**: the weighted mean
-        of the *measured* pillars only (`cyber`, `tprm`, `privacy`, `continuity`, `ai`,
-        `human`), each in `pillars.<pillar>` with its score, whether it was measured, its
-        base and its effective weight. An unmeasured pillar is left out of the mean; it is
-        never counted as 0 or 100. Version 1 points (posture, higher is better, over three
-        supplier pillars) stay in `history` with `methodology_version = 1`. Never compare or
-        subtract scores of different versions.
       security:
         - bearerAuth: [risks:read]
       parameters:
@@ -1150,6 +1153,12 @@ paths:
         The status change is attributed to the human who created the API key — an API key
         is not an actor a compliance reviewer can question. A `note` is recorded in the
         item's history. Changing the status emits `action_plan_item.status_changed`.
+
+        The same rule as the Aranis screen applies: `completed` requires at least one
+        approved evidence on the item, otherwise the call answers `409 conflict` with
+        `details.reason = evidence_required`. When every item of the plan reaches a final
+        status (`completed`, `not_applicable`, `rejected`) the plan itself is marked
+        completed.
       security:
         - bearerAuth: [action-plans:write]
       parameters:
@@ -1172,6 +1181,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
         '422': { $ref: '#/components/responses/ValidationFailed' }
         '429': { $ref: '#/components/responses/RateLimited' }
 
@@ -1699,7 +1709,7 @@ components:
           description: "Required — a supplier record must have a contact address."
         domain:
           type: string
-          description: "Lowercased and deduplicated within the workspace."
+          description: "Lowercased and deduplicated within the workspace. When omitted, taken from `email` unless it is a free mail provider."
         cnpj: { type: string }
         industry:
           type: string
@@ -1756,8 +1766,21 @@ components:
           type: string
           format: uuid
           description: Required when `assessment_type` is `supplier`; must be omitted when it is `self`.
+        vendor_profile:
+          type: string
+          enum: [P1, P2, P3]
+          description: Required when `assessment_type` is `supplier`.
+        respondent_emails:
+          type: array
+          minItems: 1
+          maxItems: 10
+          items: { type: string, format: email }
+          description: Required when `assessment_type` is `supplier`. The people who will answer; nobody is e-mailed by this call.
         questionnaire_ids: { type: array, items: { type: string, format: uuid } }
-        deadline: { type: string, format: date-time }
+        deadline:
+          type: string
+          format: date-time
+          description: Must be in the future for a supplier assessment.
         validity_days: { type: integer, minimum: 1 }
 
     Gap:
@@ -2128,72 +2151,15 @@ components:
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
 
-    RiskScorePillar:
-      type: object
-      description: One pillar of a methodology version 2 score.
-      properties:
-        score:
-          type: [number, 'null']
-          description: Risk, 0–100, higher is worse. Null when the pillar is not measured.
-        measured: { type: boolean }
-        base:
-          type: [integer, 'null']
-          description: |
-            What the number stands on: declared controls (`cyber`, `ai`), supplier
-            assessments (`tprm`), risks in the register (`privacy`), critical products and
-            services (`continuity`).
-        weight:
-          type: number
-          description: Configured weight of the pillar (default 1). Weights are relative.
-        weight_effective:
-          type: [number, 'null']
-          description: Share of `score_final`, 0–1, over measured pillars. Null when not measured.
-
-    RiskScorePillars:
-      type: object
-      description: |
-        Version 2 breakdown. For version 1 points this object has the older shape
-        (`tprm`, `cyber`, `ai`, `human` with a `score` that is posture, higher is better);
-        read `methodology_version` first.
-      properties:
-        cyber: { $ref: '#/components/schemas/RiskScorePillar' }
-        tprm: { $ref: '#/components/schemas/RiskScorePillar' }
-        privacy: { $ref: '#/components/schemas/RiskScorePillar' }
-        continuity: { $ref: '#/components/schemas/RiskScorePillar' }
-        ai: { $ref: '#/components/schemas/RiskScorePillar' }
-        human: { $ref: '#/components/schemas/RiskScorePillar' }
-        measured_count: { type: integer, description: 'Pillars with data, out of six.' }
-        methodology_version: { type: integer }
-      additionalProperties: true
-
-    RiskScoreMethodologyVersion:
-      type: integer
-      enum: [1, 2]
-      description: |
-        1 = posture, higher is better, over three supplier pillars. 2 = risk, higher is
-        worse, weighted mean of the measured pillars of six.
-
     RiskScoreHistoryPoint:
       type: object
       properties:
         id: { type: string, format: uuid }
-        score_final:
-          type: [number, 'null']
-          description: Organizational score on the scale of `methodology_version`.
-        methodology_version: { $ref: '#/components/schemas/RiskScoreMethodologyVersion' }
-        score_tprm:
-          type: [number, 'null']
-          deprecated: true
-          description: Version 1 meaning (supplier compliance, 100 − supplier risk). Use `pillars.tprm`.
-        score_cyber:
-          type: [number, 'null']
-          deprecated: true
-          description: Version 1 meaning (suppliers' cyber maturity). Use `pillars.cyber`.
-        score_human: { type: [number, 'null'], deprecated: true, description: Use `pillars.human`. }
-        pillars:
-          oneOf:
-            - $ref: '#/components/schemas/RiskScorePillars'
-            - type: 'null'
+        score_final: { type: [number, 'null'] }
+        score_tprm: { type: [number, 'null'] }
+        score_cyber: { type: [number, 'null'] }
+        score_human: { type: [number, 'null'] }
+        pillars: { type: [object, 'null'], additionalProperties: true }
         rc_composite: { type: [number, 'null'] }
         recorded_at: { type: string, format: date-time }
 
@@ -2204,27 +2170,11 @@ components:
           type: [object, 'null']
           description: The most recent calculation. Null if none has run.
           properties:
-            score_final:
-              type: [number, 'null']
-              description: Organizational score on the scale of `methodology_version`.
-            methodology_version: { $ref: '#/components/schemas/RiskScoreMethodologyVersion' }
-            pillars:
-              oneOf:
-                - $ref: '#/components/schemas/RiskScorePillars'
-                - type: 'null'
-            score_tprm:
-              type: [number, 'null']
-              deprecated: true
-              description: Version 1 meaning (supplier compliance, 100 − supplier risk). Use `pillars.tprm`.
-            score_cyber:
-              type: [number, 'null']
-              deprecated: true
-              description: Version 1 meaning (suppliers' cyber maturity). Use `pillars.cyber`.
-            score_human: { type: [number, 'null'], deprecated: true, description: Use `pillars.human`. }
-            score_ai:
-              type: [number, 'null']
-              deprecated: true
-              description: Version 1 meaning (suppliers' AI maturity). Use `pillars.ai`.
+            score_final: { type: [number, 'null'] }
+            score_tprm: { type: [number, 'null'] }
+            score_cyber: { type: [number, 'null'] }
+            score_human: { type: [number, 'null'] }
+            score_ai: { type: [number, 'null'] }
             weights: { type: [object, 'null'], additionalProperties: true }
             rc_composite: { type: [number, 'null'] }
             calculated_at: { type: [string, 'null'], format: date-time }
@@ -2530,6 +2480,9 @@ components:
                 supplier_id: { type: [string, 'null'], format: uuid }
                 status: { type: string }
                 previous_status: { type: string }
+                plan_completed:
+                  type: boolean
+                  description: True when this change was the last one and the whole plan is now completed.
 
 webhooks:
   assessment.completed:
