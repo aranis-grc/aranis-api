@@ -25,8 +25,11 @@ export interface paths {
          * @description Registers a supplier in the workspace.
          *
          *     Suppliers created through the API always land with `source: "import"`, whatever
-         *     the request says. When `domain` is given it is deduplicated within the workspace:
-         *     a second supplier on the same domain is rejected with `409` and the existing id.
+         *     the request says. The same rule as the Aranis app applies: when `domain` is
+         *     omitted it is taken from `email`, unless that is a free mail provider (gmail.com,
+         *     outlook.com and the like); the domain is deduplicated within the workspace,
+         *     ignoring case, and a second supplier on the same domain is rejected with `409`
+         *     and the existing id.
          */
         post: operations["createSupplier"];
         delete?: never;
@@ -75,6 +78,13 @@ export interface paths {
          *
          *     Supplier assessments consume the workspace's assessment quota; self-assessments
          *     do not.
+         *
+         *     A supplier assessment follows the same rule as the Aranis app: it needs a
+         *     `vendor_profile` (P1, P2 or P3) and one to ten `respondent_emails`, so the draft
+         *     can be sent from the app; a `deadline`, when given, must be in the future; and a
+         *     supplier that already has an open assessment (draft, sent or in progress) is
+         *     refused with `409` and `details.existing_assessment_id`. Without `validity_days`,
+         *     the workspace's configured window for the profile applies.
          */
         post: operations["createAssessment"];
         delete?: never;
@@ -410,15 +420,6 @@ export interface paths {
          * @description Returns a single-element `data` array holding `current` and `history`. It is a
          *     time series bounded by `from`/`to` rather than a cursor-paged collection, so
          *     `next_cursor` is always null.
-         *
-         *     **Methodology.** Every point carries `methodology_version`. From version 2 on,
-         *     `score_final` is a **risk** score, 0–100, **higher is worse**: the weighted mean
-         *     of the *measured* pillars only (`cyber`, `tprm`, `privacy`, `continuity`, `ai`,
-         *     `human`), each in `pillars.<pillar>` with its score, whether it was measured, its
-         *     base and its effective weight. An unmeasured pillar is left out of the mean; it is
-         *     never counted as 0 or 100. Version 1 points (posture, higher is better, over three
-         *     supplier pillars) stay in `history` with `methodology_version = 1`. Never compare or
-         *     subtract scores of different versions.
          */
         get: operations["getRiskScores"];
         put?: never;
@@ -528,6 +529,12 @@ export interface paths {
          *     The status change is attributed to the human who created the API key — an API key
          *     is not an actor a compliance reviewer can question. A `note` is recorded in the
          *     item's history. Changing the status emits `action_plan_item.status_changed`.
+         *
+         *     The same rule as the Aranis screen applies: `completed` requires at least one
+         *     approved evidence on the item, otherwise the call answers `409 conflict` with
+         *     `details.reason = evidence_required`. When every item of the plan reaches a final
+         *     status (`completed`, `not_applicable`, `rejected`) the plan itself is marked
+         *     completed.
          */
         patch: operations["updateActionPlanItem"];
         trace?: never;
@@ -896,7 +903,7 @@ export interface components {
             name: string;
             /** @description Required — a supplier record must have a contact address. */
             email: string;
-            /** @description Lowercased and deduplicated within the workspace. */
+            /** @description Lowercased and deduplicated within the workspace. When omitted, taken from `email` unless it is a free mail provider. */
             domain?: string;
             cnpj?: string;
             /** @description Defaults to `other`. */
@@ -957,8 +964,18 @@ export interface components {
              * @description Required when `assessment_type` is `supplier`; must be omitted when it is `self`.
              */
             supplier_id?: string;
+            /**
+             * @description Required when `assessment_type` is `supplier`.
+             * @enum {string}
+             */
+            vendor_profile?: "P1" | "P2" | "P3";
+            /** @description Required when `assessment_type` is `supplier`. The people who will answer; nobody is e-mailed by this call. */
+            respondent_emails?: string[];
             questionnaire_ids?: string[];
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description Must be in the future for a supplier assessment.
+             */
             deadline?: string;
             validity_days?: number;
         };
@@ -1302,68 +1319,16 @@ export interface components {
             /** Format: date-time */
             updated_at: string;
         };
-        /** @description One pillar of a methodology version 2 score. */
-        RiskScorePillar: {
-            /** @description Risk, 0–100, higher is worse. Null when the pillar is not measured. */
-            score?: number | null;
-            measured?: boolean;
-            /**
-             * @description What the number stands on: declared controls (`cyber`, `ai`), supplier
-             *     assessments (`tprm`), risks in the register (`privacy`), critical products and
-             *     services (`continuity`).
-             */
-            base?: number | null;
-            /** @description Configured weight of the pillar (default 1). Weights are relative. */
-            weight?: number;
-            /** @description Share of `score_final`, 0–1, over measured pillars. Null when not measured. */
-            weight_effective?: number | null;
-        };
-        /**
-         * @description Version 2 breakdown. For version 1 points this object has the older shape
-         *     (`tprm`, `cyber`, `ai`, `human` with a `score` that is posture, higher is better);
-         *     read `methodology_version` first.
-         */
-        RiskScorePillars: {
-            cyber?: components["schemas"]["RiskScorePillar"];
-            tprm?: components["schemas"]["RiskScorePillar"];
-            privacy?: components["schemas"]["RiskScorePillar"];
-            continuity?: components["schemas"]["RiskScorePillar"];
-            ai?: components["schemas"]["RiskScorePillar"];
-            human?: components["schemas"]["RiskScorePillar"];
-            /** @description Pillars with data, out of six. */
-            measured_count?: number;
-            methodology_version?: number;
-        } & {
-            [key: string]: unknown;
-        };
-        /**
-         * @description 1 = posture, higher is better, over three supplier pillars. 2 = risk, higher is
-         *     worse, weighted mean of the measured pillars of six.
-         * @enum {integer}
-         */
-        RiskScoreMethodologyVersion: 1 | 2;
         RiskScoreHistoryPoint: {
             /** Format: uuid */
             id?: string;
-            /** @description Organizational score on the scale of `methodology_version`. */
             score_final?: number | null;
-            methodology_version?: components["schemas"]["RiskScoreMethodologyVersion"];
-            /**
-             * @deprecated
-             * @description Version 1 meaning (supplier compliance, 100 − supplier risk). Use `pillars.tprm`.
-             */
             score_tprm?: number | null;
-            /**
-             * @deprecated
-             * @description Version 1 meaning (suppliers' cyber maturity). Use `pillars.cyber`.
-             */
             score_cyber?: number | null;
-            /**
-             * @deprecated
-             * @description Use `pillars.human`.
-             */
             score_human?: number | null;
-            pillars?: components["schemas"]["RiskScorePillars"] | null;
+            pillars?: {
+                [key: string]: unknown;
+            } | null;
             rc_composite?: number | null;
             /** Format: date-time */
             recorded_at?: string;
@@ -1371,29 +1336,10 @@ export interface components {
         RiskScoreSeries: {
             /** @description The most recent calculation. Null if none has run. */
             current?: {
-                /** @description Organizational score on the scale of `methodology_version`. */
                 score_final?: number | null;
-                methodology_version?: components["schemas"]["RiskScoreMethodologyVersion"];
-                pillars?: components["schemas"]["RiskScorePillars"] | null;
-                /**
-                 * @deprecated
-                 * @description Version 1 meaning (supplier compliance, 100 − supplier risk). Use `pillars.tprm`.
-                 */
                 score_tprm?: number | null;
-                /**
-                 * @deprecated
-                 * @description Version 1 meaning (suppliers' cyber maturity). Use `pillars.cyber`.
-                 */
                 score_cyber?: number | null;
-                /**
-                 * @deprecated
-                 * @description Use `pillars.human`.
-                 */
                 score_human?: number | null;
-                /**
-                 * @deprecated
-                 * @description Version 1 meaning (suppliers' AI maturity). Use `pillars.ai`.
-                 */
                 score_ai?: number | null;
                 weights?: {
                     [key: string]: unknown;
@@ -1716,6 +1662,8 @@ export interface components {
                 supplier_id?: string | null;
                 status?: string;
                 previous_status?: string;
+                /** @description True when this change was the last one and the whole plan is now completed. */
+                plan_completed?: boolean;
             };
         };
     };
@@ -2082,7 +2030,11 @@ export interface operations {
                  * @example {
                  *       "supplier_id": "3f1a8c2e-9b47-4d51-a0e6-2c7d8f4b1a93",
                  *       "assessment_type": "supplier",
-                 *       "deadline": "2026-09-30T23:59:59Z",
+                 *       "vendor_profile": "P2",
+                 *       "respondent_emails": [
+                 *         "security@acme.com"
+                 *       ],
+                 *       "deadline": "2027-03-31T23:59:59Z",
                  *       "validity_days": 365
                  *     }
                  */
@@ -2873,6 +2825,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
             422: components["responses"]["ValidationFailed"];
             429: components["responses"]["RateLimited"];
         };

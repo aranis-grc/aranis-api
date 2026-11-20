@@ -153,7 +153,7 @@
               "query": [],
               "variable": []
             },
-            "description": "**Scope required:** `suppliers:write`\n\nRegisters a supplier in the workspace.\n\nSuppliers created through the API always land with `source: \"import\"`, whatever\nthe request says. When `domain` is given it is deduplicated within the workspace:\na second supplier on the same domain is rejected with `409` and the existing id.\n\n`POST /v1/suppliers`"
+            "description": "**Scope required:** `suppliers:write`\n\nRegisters a supplier in the workspace.\n\nSuppliers created through the API always land with `source: \"import\"`, whatever\nthe request says. The same rule as the Aranis app applies: when `domain` is\nomitted it is taken from `email`, unless that is a free mail provider (gmail.com,\noutlook.com and the like); the domain is deduplicated within the workspace,\nignoring case, and a second supplier on the same domain is rejected with `409`\nand the existing id.\n\n`POST /v1/suppliers`"
           },
           "response": []
         },
@@ -276,7 +276,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"supplier_id\": \"3f1a8c2e-9b47-4d51-a0e6-2c7d8f4b1a93\",\n  \"assessment_type\": \"supplier\",\n  \"deadline\": \"2026-09-30T23:59:59Z\",\n  \"validity_days\": 365\n}",
+              "raw": "{\n  \"supplier_id\": \"3f1a8c2e-9b47-4d51-a0e6-2c7d8f4b1a93\",\n  \"assessment_type\": \"supplier\",\n  \"vendor_profile\": \"P2\",\n  \"respondent_emails\": [\n    \"security@acme.com\"\n  ],\n  \"deadline\": \"2027-03-31T23:59:59Z\",\n  \"validity_days\": 365\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -294,7 +294,7 @@
               "query": [],
               "variable": []
             },
-            "description": "**Scope required:** `assessments:write`\n\nCreates an assessment in `draft`.\n\nThe API does **not** invite the supplier. Sending the questionnaire is a\ndeliberate action in the Aranis app — an integration should not be able to email\na third party as a side effect of a POST.\n\nSupplier assessments consume the workspace's assessment quota; self-assessments\ndo not.\n\n`POST /v1/assessments`"
+            "description": "**Scope required:** `assessments:write`\n\nCreates an assessment in `draft`.\n\nThe API does **not** invite the supplier. Sending the questionnaire is a\ndeliberate action in the Aranis app — an integration should not be able to email\na third party as a side effect of a POST.\n\nSupplier assessments consume the workspace's assessment quota; self-assessments\ndo not.\n\nA supplier assessment follows the same rule as the Aranis app: it needs a\n`vendor_profile` (P1, P2 or P3) and one to ten `respondent_emails`, so the draft\ncan be sent from the app; a `deadline`, when given, must be in the future; and a\nsupplier that already has an open assessment (draft, sent or in progress) is\nrefused with `409` and `details.existing_assessment_id`. Without `validity_days`,\nthe workspace's configured window for the profile applies.\n\n`POST /v1/assessments`"
           },
           "response": []
         },
@@ -976,7 +976,7 @@
               ],
               "variable": []
             },
-            "description": "**Scope required:** `risks:read`\n\nReturns a single-element `data` array holding `current` and `history`. It is a\ntime series bounded by `from`/`to` rather than a cursor-paged collection, so\n`next_cursor` is always null.\n\n**Methodology.** Every point carries `methodology_version`. From version 2 on, `score_final` is a **risk** score, 0–100, **higher is worse**: the weighted mean of the measured pillars only (`cyber`, `tprm`, `privacy`, `continuity`, `ai`, `human`), each in `pillars.<pillar>`. Version 1 points (posture, higher is better) stay in `history`. Never compare scores of different versions. `score_tprm`, `score_cyber`, `score_ai` and `score_human` are deprecated.\n\n`GET /v1/risk-scores`"
+            "description": "**Scope required:** `risks:read`\n\nReturns a single-element `data` array holding `current` and `history`. It is a\ntime series bounded by `from`/`to` rather than a cursor-paged collection, so\n`next_cursor` is always null.\n\n`GET /v1/risk-scores`"
           },
           "response": []
         },
@@ -1199,7 +1199,7 @@
                 }
               ]
             },
-            "description": "**Scope required:** `action-plans:write`\n\nThe only endpoint that changes existing state, which is why it is scoped to a\nsingle field.\n\nThe status change is attributed to the human who created the API key — an API key\nis not an actor a compliance reviewer can question. A `note` is recorded in the\nitem's history. Changing the status emits `action_plan_item.status_changed`.\n\n`PATCH /v1/action-plan-items/{id}`"
+            "description": "**Scope required:** `action-plans:write`\n\nThe only endpoint that changes existing state, which is why it is scoped to a\nsingle field.\n\nThe status change is attributed to the human who created the API key — an API key\nis not an actor a compliance reviewer can question. A `note` is recorded in the\nitem's history. Changing the status emits `action_plan_item.status_changed`.\n\nThe same rule as the Aranis screen applies: `completed` requires at least one\napproved evidence on the item, otherwise the call answers `409 conflict` with\n`details.reason = evidence_required`. When every item of the plan reaches a final\nstatus (`completed`, `not_applicable`, `rejected`) the plan itself is marked\ncompleted.\n\n`PATCH /v1/action-plan-items/{id}`"
           },
           "response": []
         }
