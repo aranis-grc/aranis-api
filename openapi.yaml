@@ -943,6 +943,15 @@ paths:
         Returns a single-element `data` array holding `current` and `history`. It is a
         time series bounded by `from`/`to` rather than a cursor-paged collection, so
         `next_cursor` is always null.
+
+        **Methodology.** Every point carries `methodology_version`. From version 2 on,
+        `score_final` is a **risk** score, 0–100, **higher is worse**: the weighted mean
+        of the *measured* pillars only (`cyber`, `tprm`, `privacy`, `continuity`, `ai`,
+        `human`), each in `pillars.<pillar>` with its score, whether it was measured, its
+        base and its effective weight. An unmeasured pillar is left out of the mean; it is
+        never counted as 0 or 100. Version 1 points (posture, higher is better, over three
+        supplier pillars) stay in `history` with `methodology_version = 1`. Never compare or
+        subtract scores of different versions.
       security:
         - bearerAuth: [risks:read]
       parameters:
@@ -2119,15 +2128,72 @@ components:
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
 
+    RiskScorePillar:
+      type: object
+      description: One pillar of a methodology version 2 score.
+      properties:
+        score:
+          type: [number, 'null']
+          description: Risk, 0–100, higher is worse. Null when the pillar is not measured.
+        measured: { type: boolean }
+        base:
+          type: [integer, 'null']
+          description: |
+            What the number stands on: declared controls (`cyber`, `ai`), supplier
+            assessments (`tprm`), risks in the register (`privacy`), critical products and
+            services (`continuity`).
+        weight:
+          type: number
+          description: Configured weight of the pillar (default 1). Weights are relative.
+        weight_effective:
+          type: [number, 'null']
+          description: Share of `score_final`, 0–1, over measured pillars. Null when not measured.
+
+    RiskScorePillars:
+      type: object
+      description: |
+        Version 2 breakdown. For version 1 points this object has the older shape
+        (`tprm`, `cyber`, `ai`, `human` with a `score` that is posture, higher is better);
+        read `methodology_version` first.
+      properties:
+        cyber: { $ref: '#/components/schemas/RiskScorePillar' }
+        tprm: { $ref: '#/components/schemas/RiskScorePillar' }
+        privacy: { $ref: '#/components/schemas/RiskScorePillar' }
+        continuity: { $ref: '#/components/schemas/RiskScorePillar' }
+        ai: { $ref: '#/components/schemas/RiskScorePillar' }
+        human: { $ref: '#/components/schemas/RiskScorePillar' }
+        measured_count: { type: integer, description: 'Pillars with data, out of six.' }
+        methodology_version: { type: integer }
+      additionalProperties: true
+
+    RiskScoreMethodologyVersion:
+      type: integer
+      enum: [1, 2]
+      description: |
+        1 = posture, higher is better, over three supplier pillars. 2 = risk, higher is
+        worse, weighted mean of the measured pillars of six.
+
     RiskScoreHistoryPoint:
       type: object
       properties:
         id: { type: string, format: uuid }
-        score_final: { type: [number, 'null'] }
-        score_tprm: { type: [number, 'null'] }
-        score_cyber: { type: [number, 'null'] }
-        score_human: { type: [number, 'null'] }
-        pillars: { type: [object, 'null'], additionalProperties: true }
+        score_final:
+          type: [number, 'null']
+          description: Organizational score on the scale of `methodology_version`.
+        methodology_version: { $ref: '#/components/schemas/RiskScoreMethodologyVersion' }
+        score_tprm:
+          type: [number, 'null']
+          deprecated: true
+          description: Version 1 meaning (supplier compliance, 100 − supplier risk). Use `pillars.tprm`.
+        score_cyber:
+          type: [number, 'null']
+          deprecated: true
+          description: Version 1 meaning (suppliers' cyber maturity). Use `pillars.cyber`.
+        score_human: { type: [number, 'null'], deprecated: true, description: Use `pillars.human`. }
+        pillars:
+          oneOf:
+            - $ref: '#/components/schemas/RiskScorePillars'
+            - type: 'null'
         rc_composite: { type: [number, 'null'] }
         recorded_at: { type: string, format: date-time }
 
@@ -2138,11 +2204,27 @@ components:
           type: [object, 'null']
           description: The most recent calculation. Null if none has run.
           properties:
-            score_final: { type: [number, 'null'] }
-            score_tprm: { type: [number, 'null'] }
-            score_cyber: { type: [number, 'null'] }
-            score_human: { type: [number, 'null'] }
-            score_ai: { type: [number, 'null'] }
+            score_final:
+              type: [number, 'null']
+              description: Organizational score on the scale of `methodology_version`.
+            methodology_version: { $ref: '#/components/schemas/RiskScoreMethodologyVersion' }
+            pillars:
+              oneOf:
+                - $ref: '#/components/schemas/RiskScorePillars'
+                - type: 'null'
+            score_tprm:
+              type: [number, 'null']
+              deprecated: true
+              description: Version 1 meaning (supplier compliance, 100 − supplier risk). Use `pillars.tprm`.
+            score_cyber:
+              type: [number, 'null']
+              deprecated: true
+              description: Version 1 meaning (suppliers' cyber maturity). Use `pillars.cyber`.
+            score_human: { type: [number, 'null'], deprecated: true, description: Use `pillars.human`. }
+            score_ai:
+              type: [number, 'null']
+              deprecated: true
+              description: Version 1 meaning (suppliers' AI maturity). Use `pillars.ai`.
             weights: { type: [object, 'null'], additionalProperties: true }
             rc_composite: { type: [number, 'null'] }
             calculated_at: { type: [string, 'null'], format: date-time }

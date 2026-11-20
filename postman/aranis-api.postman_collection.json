@@ -976,7 +976,7 @@
               ],
               "variable": []
             },
-            "description": "**Scope required:** `risks:read`\n\nReturns a single-element `data` array holding `current` and `history`. It is a\ntime series bounded by `from`/`to` rather than a cursor-paged collection, so\n`next_cursor` is always null.\n\n`GET /v1/risk-scores`"
+            "description": "**Scope required:** `risks:read`\n\nReturns a single-element `data` array holding `current` and `history`. It is a\ntime series bounded by `from`/`to` rather than a cursor-paged collection, so\n`next_cursor` is always null.\n\n**Methodology.** Every point carries `methodology_version`. From version 2 on, `score_final` is a **risk** score, 0–100, **higher is worse**: the weighted mean of the measured pillars only (`cyber`, `tprm`, `privacy`, `continuity`, `ai`, `human`), each in `pillars.<pillar>`. Version 1 points (posture, higher is better) stay in `history`. Never compare scores of different versions. `score_tprm`, `score_cyber`, `score_ai` and `score_human` are deprecated.\n\n`GET /v1/risk-scores`"
           },
           "response": []
         },
