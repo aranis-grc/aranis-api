@@ -6,7 +6,7 @@ escrita à mão num `package.json` diverge da tag; tag sem entrada de changelog 
 
 ```bash
 npx changeset          # descreve a mudança e escolhe o bump
-npx changeset version  # aplica o bump e escreve o CHANGELOG (o CI faz isso por você)
+npm run version        # aplica o bump, escreve o CHANGELOG e propaga o número
 ```
 
 ## Que bump escolher
@@ -19,9 +19,18 @@ npx changeset version  # aplica o bump e escreve o CHANGELOG (o CI faz isso por 
 
 ## Quando o número sobe
 
-Não sobe no merge para `staging`. Sobe quando `main` recebe o merge: o workflow
-`.github/workflows/release.yml` abre um PR **"Version Packages"** com o bump acumulado
-dos changesets pendentes e, quando esse PR entra, a tag `vX.Y.Z` é criada.
+No mesmo PR que muda o contrato, à mão. Desde 26/11/2026 não há workflow de release
+(SCRUM-697: o GitHub é só repositório; o Verify do `aranis-api-pipeline`, na AWS,
+confere o contrato a cada push na `main`).
 
-Push em `main` sem changeset pendente não faz nada — o workflow existir não significa
-que todo merge vira release.
+1. `npx changeset` descreve a mudança e escolhe o bump.
+2. `npm run version` aplica o bump acumulado, escreve o `CHANGELOG.md` e roda
+   `scripts/sync-version.mjs`, que leva o número para os quatro lugares que o
+   declaram: `package.json`, `openapi.yaml` (`info.version`, o que quem integra lê),
+   `sdk/typescript/package.json` e `VERSION`.
+3. Commit dos arquivos alterados no mesmo PR.
+
+Tag `vX.Y.Z` deixou de ser automática. Se precisar de uma, crie depois do merge:
+`git tag vX.Y.Z <commit do merge> && git push origin vX.Y.Z`.
+
+PR que não muda o contrato não precisa de changeset nem de bump.
