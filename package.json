@@ -5,7 +5,8 @@
   "description": "Version holder for the Aranis API contract. This repository ships no JavaScript of its own; the number lives here because changesets reads package.json, and scripts/sync-version.mjs copies it into the three places that actually declare it.",
   "scripts": {
     "changeset": "changeset",
-    "sync-version": "node scripts/sync-version.mjs"
+    "sync-version": "node scripts/sync-version.mjs",
+    "version": "changeset version && node scripts/sync-version.mjs"
   },
   "devDependencies": {
     "@changesets/cli": "^3.0.1",
