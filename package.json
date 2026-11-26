@@ -8,6 +8,8 @@
     "sync-version": "node scripts/sync-version.mjs"
   },
   "devDependencies": {
-    "@changesets/cli": "^3.0.1"
+    "@changesets/cli": "^3.0.1",
+    "@redocly/cli": "2.83.0",
+    "js-yaml": "4.3.2"
   }
 }
